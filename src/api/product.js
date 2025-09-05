@@ -2,34 +2,6 @@
 
 const STORAGE_KEY = "products";
 
-/** İlk yükleme için örnek ürünler (seed) */
-const SEED = [
-  {
-    id: "logitech-mk235",
-    name: "Logitech MK235 USB Kablosuz Türkçe Klavye",
-    price: 939.00,
-    category: "Klavye",
-    image: "logitech-mk235.jpg",
-    description: "Tam boyutlu bir klavye düzeni, sayısal tuş takımı ve veri gir..."
-  },
-  {
-    id: "aurora-kulaklık",
-    name: "Aurora Kulaklık",
-    price: 1300.00,
-    category: "Kulaklık", 
-    image: "aurora.png",
-    description: "Kablosuz, hafif ve konforlu günlük kullanım kulaklığı..."
-  },
-  {
-    id: "corsair-harpoon-rgb",
-    name: "Corsair Harpoon Rgb Pro Oyuncu Mouse",
-    price: 979.00,
-    category: "Mouse",
-    image: "corsair-mouse.jpg", 
-    description: "Optik sensör teknolojisi sayesinde, oyunlarda keskin ve hızl..."
-  }
-];
-
 function readStore() {
   try {
     return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
@@ -41,16 +13,12 @@ function writeStore(arr) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
 }
 
-/** Ürünleri getir: seed + localStorage (localStorage baskın) */
+/** Ürünleri getir: Sadece admin tarafından eklenen (localStorage) kayıtlar */
 export function fetchProducts() {
   return new Promise(function (resolve) {
     setTimeout(function () {
       var stored = readStore();
-      var map = {};
-      SEED.forEach(function (p) { map[p.id] = p; });
-      stored.forEach(function (p) { map[p.id] = p; });
-      var out = Object.keys(map).map(function (k) { return map[k]; });
-      out = out.filter(function (p) { return p.active !== false; });
+      var out = stored.filter(function (p) { return p.active !== false; });
       resolve(out);
     }, 150);
   });
@@ -63,6 +31,10 @@ export function saveProduct(prod) {
     var out = Object.assign({}, prod);
     if (!out.id) out.id = "p" + Date.now();
     out.price = Number(out.price) || 0;
+    out.stock = out.stock == null ? 10 : Number(out.stock); // varsayılan stok
+    if (Array.isArray(out.variants)) {
+      out.variants = out.variants.map(function(v){ return { label: v.label || "", price: Number(v.price)||out.price, stock: Number(v.stock)||0 }; });
+    }
 
     var idx = -1;
     for (var i = 0; i < list.length; i++) {
@@ -135,6 +107,29 @@ export function updateOrderStatus(orderId, status) {
     const idx = orders.findIndex(o => o.id === orderId);
     if (idx >= 0) {
       orders[idx].status = status;
+      // İş kuralları: İptal edilebilirlik durumu
+      if (status === "Sipariş Onaylandı") {
+        orders[idx].cancelable = true;
+      }
+      if (status === "Kargoda" || status === "Tamamlandı" || status === "İptal Edildi") {
+        orders[idx].cancelable = false;
+      }
+      localStorage.setItem("orders", JSON.stringify(orders));
+    }
+    resolve();
+  });
+}
+
+export function setOrderShippingInfo(orderId, { carrier, trackingNumber }) {
+  return new Promise((resolve) => {
+    const orders = JSON.parse(localStorage.getItem("orders") || "[]");
+    const idx = orders.findIndex(o => o.id === orderId);
+    if (idx >= 0) {
+      orders[idx].shipping = {
+        ...(orders[idx].shipping || {}),
+        carrier: carrier || orders[idx].shipping?.carrier || "",
+        trackingNumber: trackingNumber || orders[idx].shipping?.trackingNumber || ""
+      };
       localStorage.setItem("orders", JSON.stringify(orders));
     }
     resolve();

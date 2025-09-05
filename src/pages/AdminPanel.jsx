@@ -1,6 +1,6 @@
 // src/pages/AdminPanel.jsx
 import { useEffect, useMemo, useState } from "react";
-import { fetchProducts, saveProduct, deleteProduct } from "../api/product";
+import { fetchProducts, saveProduct, deleteProduct, fetchOrders, fetchUsers, updateOrderStatus, setOrderShippingInfo } from "../api/product";
 
 /* Basit toast (Home’daki ile uyumlu konteyner sınıfı) */
 function useToasts() {
@@ -68,19 +68,38 @@ export default function AdminPanel() {
     description: "",
     active: true,
     specs: [],
+    stock: 10,
+    variantName: "",
+    variants: [], // [{label, price, stock}]
   };
   const [form, setForm] = useState(empty);
   const editing = !!form.id;
 
   // siparişler/kullanıcılar
-  const [orders] = useState(() =>
-    JSON.parse(localStorage.getItem("orders") || "[]")
-  );
-  const [users] = useState(() =>
-    JSON.parse(localStorage.getItem("users") || "[]")
-  );
+  const [orders, setOrders] = useState([]);
+  const [users, setUsers] = useState([]);
+  const reloadOrdersUsers = async () => {
+    const [o, u] = await Promise.all([fetchOrders(), fetchUsers()]);
+    setOrders(o);
+    setUsers(u);
+  };
+  useEffect(() => {
+    reloadOrdersUsers();
+  }, []);
 
   const [tab, setTab] = useState("products"); // products | orders | users | settings
+
+  // site ayarları (KDV / kargo)
+  const [siteSettings, setSiteSettings] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("siteSettings") || "{}"); } catch(e){ return {}; }
+  });
+  useEffect(() => { localStorage.setItem("siteSettings", JSON.stringify(siteSettings)); }, [siteSettings]);
+
+  // kuponlar
+  const [coupons, setCoupons] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("coupons") || "[]"); } catch(e){ return []; }
+  });
+  const saveCoupons = (next) => { setCoupons(next); localStorage.setItem("coupons", JSON.stringify(next)); };
 
   // file -> dataURL
   const onPickImage = async (file) => {
@@ -103,6 +122,11 @@ export default function AdminPanel() {
     });
   const removeSpec = (i) =>
     setForm((f) => ({ ...f, specs: (f.specs || []).filter((_, idx) => idx !== i) }));
+
+  // Varyant işlemleri
+  const addVariantRow = () => setForm((f)=>({ ...f, variants: [ ...(f.variants||[]), { label: "", price: Number(f.price)||0, stock: 0 } ] }));
+  const setVariantRow = (i, key, val) => setForm((f)=>{ const vs=[...(f.variants||[])]; vs[i] = { ...vs[i], [key]: key==='price'||key==='stock' ? Number(val)||0 : val }; return { ...f, variants: vs }; });
+  const removeVariantRow = (i) => setForm((f)=>({ ...f, variants: (f.variants||[]).filter((_,x)=>x!==i) }));
 
   const onEdit = (p) => setForm({ ...p });
   const onDelete = async (id) => {
@@ -131,6 +155,36 @@ export default function AdminPanel() {
     const total = orders.reduce((a, o) => a + (o.total || 0), 0);
     return { count: orders.length, total };
   }, [orders]);
+
+  const STATUSES = [
+    "Sipariş Onay Bekliyor",
+    "Sipariş Onaylandı",
+    "Hazırlanıyor",
+    "Kargoda",
+    "Tamamlandı",
+    "İptal Edildi",
+  ];
+
+  const setOrderStatus = async (id, status) => {
+    await updateOrderStatus(id, status);
+    await reloadOrdersUsers();
+  };
+
+  const setShippingAndStatus = async (o) => {
+    const current = o.status || "Sipariş Onay Bekliyor";
+    const filtered = STATUSES.filter(s => s !== "İptal Edildi");
+    const idx = filtered.indexOf(current);
+    const next = filtered[Math.min(idx + 1, filtered.length - 1)];
+
+    if (next === "Kargoda") {
+      const carrier = prompt("Kargo firması (örn. Yurtiçi, Aras, MNG)...", o.shipping?.carrier || "");
+      if (carrier === null) return; // vazgeçti
+      const trackingNumber = prompt("Takip numarası...", o.shipping?.trackingNumber || "");
+      if (trackingNumber === null) return;
+      await setOrderShippingInfo(o.id, { carrier, trackingNumber });
+    }
+    await setOrderStatus(o.id, next);
+  };
 
   return (
     <div className="ecommerce-layout">
@@ -248,6 +302,16 @@ export default function AdminPanel() {
                 ))}
               </select>
 
+              <label className="label">Stok</label>
+              <input
+                className="input"
+                type="number"
+                min="0"
+                step="1"
+                value={form.stock ?? 0}
+                onChange={(e) => setForm({ ...form, stock: Math.max(0, e.target.valueAsNumber || 0) })}
+              />
+
               <label className="label">Görsel</label>
               <input
                 className="input"
@@ -282,6 +346,26 @@ export default function AdminPanel() {
                   setForm({ ...form, description: e.target.value })
                 }
               />
+
+              {/* Varyantlar */}
+              <div className="label" style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <span>Varyantlar (opsiyonel)</span>
+                <button type="button" className="link" onClick={addVariantRow}>+ varyant ekle</button>
+              </div>
+              <div className="row2" style={{ alignItems:'center' }}>
+                <input className="input" placeholder="Varyant adı (örn. Renk)" value={form.variantName||""} onChange={(e)=>setForm({ ...form, variantName: e.target.value })} />
+                <div className="muted">Aşağıda seçenekleri ve stok/fiyat girin.</div>
+              </div>
+              {(form.variants||[]).map((v,i)=> (
+                <div key={i} className="variant-row">
+                  <input className="input" placeholder="Seçenek (örn. Siyah)" value={v.label} onChange={(e)=>setVariantRow(i,'label', e.target.value)} />
+                  <input className="input" type="number" placeholder="Fiyat" value={v.price} onChange={(e)=>setVariantRow(i,'price', e.target.valueAsNumber)} />
+                  <input className="input" type="number" placeholder="Stok" value={v.stock} onChange={(e)=>setVariantRow(i,'stock', e.target.valueAsNumber)} />
+                  <div className="variant-controls">
+                    <button type="button" className="btn-ghost" onClick={()=>removeVariantRow(i)}>Sil</button>
+                  </div>
+                </div>
+              ))}
 
               <div
                 className="label"
@@ -362,6 +446,7 @@ export default function AdminPanel() {
                   <div>Ürün</div>
                   <div>Fiyat</div>
                   <div>Kat.</div>
+                  <div>Stok</div>
                   <div>Durum</div>
                   <div>İşlem</div>
                 </div>
@@ -372,6 +457,7 @@ export default function AdminPanel() {
                     </div>
                     <div>₺{Number(p.price).toLocaleString("tr-TR")}</div>
                     <div>{p.category || "-"}</div>
+                    <div>{p.stock ?? 0}</div>
                     <div>{p.active ? "Aktif" : "Pasif"}</div>
                     <div className="adm-actions">
                       <button className="link" onClick={() => onEdit(p)}>
@@ -407,21 +493,25 @@ export default function AdminPanel() {
                 <div>Tarih</div>
                 <div>Müşteri</div>
                 <div>Toplam</div>
-                <div>Ürünler</div>
+                <div>Durum</div>
+                <div>İşlem</div>
               </div>
               {orders.map((o) => (
-                <div key={o.id} className="adm-row order-row" onClick={() => window.location.assign(`/order/${o.id}`)}>
+                <div key={o.id} className="adm-row order-row" style={{ alignItems: "center" }}>
                   <div>{o.id}</div>
                   <div>{new Date(o.date).toLocaleString("tr-TR")}</div>
                   <div>{o.email || "-"}</div>
                   <div>
-                    {(o.total || 0).toLocaleString("tr-TR", {
-                      style: "currency",
-                      currency: "TRY",
-                    })}
+                    {(o.total || 0).toLocaleString("tr-TR", { style: "currency", currency: "TRY" })}
                   </div>
-                  <div className="ellipsis">
-                    {o.items?.map((i) => `${i.name} x${i.qty}`).join(", ")}
+                  <div>
+                    <span className="chip">{o.status || "Sipariş Onay Bekliyor"}</span>
+                  </div>
+                  <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                    <button className="btn-ghost" onClick={() => window.location.assign(`/order/${o.id}`)}>Detay</button>
+                    <button className="btn-primary" onClick={() => setShippingAndStatus(o)}>
+                      <span className="btn-label">Sonraki Aşama</span>
+                    </button>
                   </div>
                 </div>
               ))}
@@ -525,41 +615,63 @@ export default function AdminPanel() {
               </h2>
               <div className="settings-grid">
                 <div className="setting-item">
-                  <label className="setting-label">
-                    <input type="checkbox" className="setting-checkbox" defaultChecked />
-                    <span className="checkmark"></span>
-                    Ücretsiz Kargo Aktif
-                  </label>
-                  <p className="setting-description">500₺ ve üzeri siparişlerde ücretsiz kargo</p>
+                  <label className="setting-label">KDV Oranı (%)</label>
+                  <input className="input" type="number" min="0" step="1" value={siteSettings.vatRate ?? 20}
+                    onChange={(e)=>setSiteSettings({ ...siteSettings, vatRate: e.target.valueAsNumber || 0 })} />
+                  <p className="setting-description">Örn: 20 → %20</p>
                 </div>
-                
                 <div className="setting-item">
-                  <label className="setting-label">
-                    <input type="checkbox" className="setting-checkbox" defaultChecked />
-                    <span className="checkmark"></span>
-                    Email Bildirimleri
-                  </label>
-                  <p className="setting-description">Yeni siparişler için email bildirimi gönder</p>
+                  <label className="setting-label">Kargo Ücreti</label>
+                  <input className="input" type="number" min="0" step="1" value={siteSettings.shippingCost ?? 0}
+                    onChange={(e)=>setSiteSettings({ ...siteSettings, shippingCost: e.target.valueAsNumber || 0 })} />
                 </div>
-
                 <div className="setting-item">
-                  <label className="setting-label">
-                    <input type="checkbox" className="setting-checkbox" />
-                    <span className="checkmark"></span>
-                    Bakım Modu
-                  </label>
-                  <p className="setting-description">Site geçici olarak bakım moduna alınır</p>
-                </div>
-
-                <div className="setting-item">
-                  <label className="setting-label">
-                    <input type="checkbox" className="setting-checkbox" defaultChecked />
-                    <span className="checkmark"></span>
-                    Stok Takibi
-                  </label>
-                  <p className="setting-description">Ürün stok durumunu takip et ve uyar</p>
+                  <label className="setting-label">Ücretsiz Kargo Eşiği</label>
+                  <input className="input" type="number" min="0" step="1" value={siteSettings.freeShippingThreshold ?? 0}
+                    onChange={(e)=>setSiteSettings({ ...siteSettings, freeShippingThreshold: e.target.valueAsNumber || 0 })} />
                 </div>
               </div>
+
+              <h3 className="admin-section-title" style={{ marginTop: 16 }}>Kupon Yönetimi</h3>
+              <div className="cart-table">
+                {coupons.map((c, i) => (
+                  <div key={i} className="cart-row" style={{ gridTemplateColumns: "1fr .6fr .6fr .6fr .6fr" }}>
+                    <div><strong>{c.code}</strong> <span className="muted">{c.desc || ""}</span></div>
+                    <div>{c.type === 'rate' ? `%${c.value}` : `${c.value}₺`}</div>
+                    <div className="muted">Min: {c.min ?? 0}₺</div>
+                    <div className="muted">Son: {c.exp ? new Date(c.exp).toLocaleDateString('tr-TR') : '-'}</div>
+                    <div style={{ textAlign: 'right' }}>
+                      <button className="btn-ghost" onClick={() => saveCoupons(coupons.filter((_,x)=>x!==i))}>Sil</button>
+                    </div>
+                  </div>
+                ))}
+                {coupons.length === 0 && <p>Henüz kupon yok.</p>}
+              </div>
+              <form className="form" onSubmit={(e)=>{ e.preventDefault();
+                const code = e.target.couponCode.value.trim().toUpperCase();
+                const type = e.target.couponType.value;
+                const value = Number(e.target.couponValue.value || 0);
+                const min = Number(e.target.couponMin.value || 0);
+                const desc = e.target.couponDesc.value.trim();
+                const exp = e.target.couponExp.value ? new Date(e.target.couponExp.value).toISOString() : null;
+                if(!code || value<=0) return;
+                saveCoupons([...coupons, { code, type, value, min, desc, exp }]);
+                e.target.reset();
+              }}>
+                <div className="row2">
+                  <input name="couponCode" className="input" placeholder="KUPONKODU" />
+                  <select name="couponType" className="input"><option value="rate">Yüzde</option><option value="amount">Tutar</option></select>
+                </div>
+                <div className="row2">
+                  <input name="couponValue" className="input" type="number" placeholder="Değer (örn %10 için 10)" />
+                  <input name="couponMin" className="input" type="number" placeholder="Min. Sepet (₺)" />
+                </div>
+                <div className="row2">
+                  <input name="couponDesc" className="input" placeholder="Açıklama" />
+                  <input name="couponExp" className="input" type="date" />
+                </div>
+                <button className="btn-primary" style={{ marginTop: 6 }}><span className="btn-label">Kupon Ekle</span></button>
+              </form>
             </div>
 
             {/* Sistem Bilgileri */}

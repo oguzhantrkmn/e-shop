@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 export default function AuthCard() {
-  const [mode, setMode] = useState("login"); // "login" | "register"
+  const [mode, setMode] = useState("login"); // "login" | "register" | "reset"
 
   // Login
   const [loginEmail, setLoginEmail] = useState("");
@@ -9,6 +9,7 @@ export default function AuthCard() {
   const [loginErr, setLoginErr] = useState("");
   const [btnState, setBtnState] = useState("idle");
   const [showLoginPw, setShowLoginPw] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
 
   // Register
   const [name, setName] = useState("");
@@ -46,10 +47,21 @@ export default function AuthCard() {
     const email = loginEmail.trim();
     const pass = loginPassword;
 
+    const storage = rememberMe ? localStorage : sessionStorage;
+
+    // Rate limit: aynı e-posta için 5 hatalı denemede 1 dakika kilitle
+    const rlKey = `rl_${email}`;
+    const now = Date.now();
+    const rl = JSON.parse(localStorage.getItem(rlKey) || "{}");
+    if (rl.lockUntil && now < rl.lockUntil) {
+      setLoginErr("Çok fazla deneme. Lütfen 1 dakika sonra tekrar deneyin.");
+      return;
+    }
+
     if (email === "admin@gmail.com" && pass === "123456") {
-      localStorage.setItem("authed", "1");
-      localStorage.setItem("authedEmail", email);
-      localStorage.setItem("authedRole", "admin");
+      storage.setItem("authed", "1");
+      storage.setItem("authedEmail", email);
+      storage.setItem("authedRole", "admin");
       window.location.assign("/admin/panel");
       return;
     }
@@ -57,12 +69,17 @@ export default function AuthCard() {
     const ok = list.find((u) => u.email === email && u.password === pass);
     if (!ok) {
       setBtnState("error"); setLoginErr("Yanlış bilgi girdiniz");
+      const failed = (rl.failed || 0) + 1;
+      const lockUntil = failed >= 5 ? now + 60 * 1000 : 0;
+      localStorage.setItem(rlKey, JSON.stringify({ failed: lockUntil ? 0 : failed, lockUntil }));
       setTimeout(() => setBtnState("idle"), 1400);
       return;
     }
-    localStorage.setItem("authed", "1");
-    localStorage.setItem("authedEmail", email);
-    localStorage.setItem("authedRole", ok.role === "admin" ? "admin" : "user");
+    // başarılı girişte rate-limit sıfırla
+    localStorage.removeItem(rlKey);
+    storage.setItem("authed", "1");
+    storage.setItem("authedEmail", email);
+    storage.setItem("authedRole", ok.role === "admin" ? "admin" : "user");
     window.location.assign("/home");
   };
 
@@ -109,6 +126,52 @@ export default function AuthCard() {
     </svg>
   );
 
+  // ---- Şifre Sıfırlama (Reset) ----
+  const [resetStep, setResetStep] = useState(1); // 1: email, 2: kod+şifre
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetCode, setResetCode] = useState("");
+  const [resetPass1, setResetPass1] = useState("");
+  const [resetPass2, setResetPass2] = useState("");
+  const [resetErr, setResetErr] = useState("");
+  const [resetState, setResetState] = useState("idle");
+
+  const handleResetRequest = (e) => {
+    e.preventDefault();
+    setResetErr(""); setResetState("idle");
+    const email = resetEmail.trim();
+    const list = users();
+    const exists = list.find((u) => u.email === email);
+    if (!exists) { setResetErr("Bu e-posta ile kullanıcı bulunamadı."); return; }
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const resets = JSON.parse(localStorage.getItem("pwdResets") || "{}");
+    resets[email] = { code, exp: Date.now() + 10 * 60 * 1000 };
+    localStorage.setItem("pwdResets", JSON.stringify(resets));
+    setResetState("sent");
+    setResetStep(2);
+  };
+
+  const handleResetConfirm = (e) => {
+    e.preventDefault();
+    setResetErr(""); setResetState("idle");
+    const email = resetEmail.trim();
+    const resets = JSON.parse(localStorage.getItem("pwdResets") || "{}");
+    const rec = resets[email];
+    if (!rec) { setResetErr("Kod gönderimi bulunamadı."); return; }
+    if (Date.now() > rec.exp) { setResetErr("Kodun süresi doldu. Tekrar isteyin."); return; }
+    if (String(resetCode).trim() !== String(rec.code)) { setResetErr("Kod hatalı."); return; }
+    if (resetPass1.length < 6) { setResetErr("Şifre en az 6 karakter olmalı."); return; }
+    if (resetPass1 !== resetPass2) { setResetErr("Şifreler eşleşmiyor."); return; }
+    const list = users();
+    const idx = list.findIndex((u) => u.email === email);
+    if (idx < 0) { setResetErr("Kullanıcı bulunamadı."); return; }
+    list[idx] = { ...list[idx], password: resetPass1 };
+    saveUsers(list);
+    delete resets[email];
+    localStorage.setItem("pwdResets", JSON.stringify(resets));
+    setMode("login");
+    setLoginEmail(email);
+  };
+
   return (
     <>
       <div className="auth-logo-section">
@@ -125,44 +188,82 @@ export default function AuthCard() {
         <div className="auth-card">
           <div className={`flip-card ${mode === "register" ? "flipped" : ""}`}>
             <div className="flip-inner">
-            {/* LOGIN */}
+            {/* LOGIN / RESET */}
             <section className="face front">
               <div className="panel" style={{ padding: 22 }}>
-                <form className="form" onSubmit={handleLogin}>
-                  <h2 className="form-title">Giriş Yap</h2>
+                {mode === "login" && (
+                  <form className="form" onSubmit={handleLogin}>
+                    <h2 className="form-title">Giriş Yap</h2>
 
-                  <label className="label" htmlFor="lemail">E-posta</label>
-                  <input id="lemail" type="email" className="input"
-                         value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)}
-                         placeholder="ornek@mail.com" required />
+                    <label className="label" htmlFor="lemail">E-posta</label>
+                    <input id="lemail" type="email" className="input"
+                           value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)}
+                           placeholder="ornek@mail.com" required />
 
-                  <label className="label" htmlFor="lpass">Şifre</label>
-                  <div className="input-row">
-                    <input id="lpass" type={showLoginPw ? "text" : "password"} className="input"
-                           value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)}
-                           placeholder="•••••••" required />
-                    <button type="button" className="pw-toggle side"
-                            aria-label={showLoginPw ? "Şifreyi gizle" : "Şifreyi göster"}
-                            aria-pressed={showLoginPw}
-                            onClick={() => setShowLoginPw((v) => !v)}>
-                      {showLoginPw ? <EyeOff /> : <Eye />}
+                    <label className="label" htmlFor="lpass">Şifre</label>
+                    <div className="input-row">
+                      <input id="lpass" type={showLoginPw ? "text" : "password"} className="input"
+                             value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)}
+                             placeholder="•••••••" required />
+                      <button type="button" className="pw-toggle side"
+                              aria-label={showLoginPw ? "Şifreyi gizle" : "Şifreyi göster"}
+                              aria-pressed={showLoginPw}
+                              onClick={() => setShowLoginPw((v) => !v)}>
+                        {showLoginPw ? <EyeOff /> : <Eye />}
+                      </button>
+                    </div>
+
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />
+                        Beni hatırla
+                      </label>
+                      <button type="button" className="link" onClick={() => { setMode("reset"); setResetStep(1); setResetEmail(loginEmail); }}>Şifremi unuttum?</button>
+                    </div>
+
+                    {loginErr && <p className="alert error over">{loginErr}</p>}
+
+                    <button className={`btn-primary ${btnState}`} type="submit"
+                            disabled={btnState === "error"}>
+                      <span className="btn-label">Giriş Yap</span>
                     </button>
-                  </div>
 
-                  {loginErr && <p className="alert error over">{loginErr}</p>}
+                    <p className="switch">
+                      Hesabın yok mu?{" "}
+                      <button type="button" className="link" onClick={toggle}>Kayıt Ol</button>
+                    </p>
+                  </form>
+                )}
 
-                  <button className={`btn-primary ${btnState}`} type="submit"
-                          disabled={btnState === "error"}>
-                    <span className="btn-label">
-                      Giriş Yap
-                    </span>
-                  </button>
+                {mode === "reset" && (
+                  <form className="form" onSubmit={resetStep === 1 ? handleResetRequest : handleResetConfirm}>
+                    <h2 className="form-title">Şifre Sıfırlama</h2>
+                    <label className="label">E-posta</label>
+                    <input type="email" className="input" value={resetEmail} onChange={(e)=>setResetEmail(e.target.value)} placeholder="ornek@mail.com" required />
 
-                  <p className="switch">
-                    Hesabın yok mu?{" "}
-                    <button type="button" className="link" onClick={toggle}>Kayıt Ol</button>
-                  </p>
-                </form>
+                    {resetStep === 2 && (
+                      <>
+                        <label className="label">Doğrulama Kodu</label>
+                        <input className="input" value={resetCode} onChange={(e)=>setResetCode(e.target.value)} placeholder="6 haneli kod" required />
+
+                        <label className="label">Yeni Şifre</label>
+                        <input type="password" className="input" value={resetPass1} onChange={(e)=>setResetPass1(e.target.value)} placeholder="En az 6 karakter" required />
+
+                        <label className="label">Yeni Şifre (Tekrar)</label>
+                        <input type="password" className="input" value={resetPass2} onChange={(e)=>setResetPass2(e.target.value)} placeholder="Tekrar" required />
+                      </>
+                    )}
+
+                    {resetErr && <p className="alert error over">{resetErr}</p>}
+
+                    <button className={`btn-primary ${resetState}`} type="submit">
+                      <span className="btn-label">{resetStep === 1 ? "Kodu Gönder" : "Şifreyi Sıfırla"}</span>
+                    </button>
+                    <p className="switch">
+                      <button type="button" className="link" onClick={() => setMode("login")}>Geri dön</button>
+                    </p>
+                  </form>
+                )}
               </div>
             </section>
 

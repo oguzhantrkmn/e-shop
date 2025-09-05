@@ -6,6 +6,7 @@ import AdminLogin from "./pages/AdminLogin";
 import AdminPanel from "./pages/AdminPanel";
 import ProductDetail from "./pages/ProductDetail"; // <<< YENİ: Ürün detay sayfası
 import OrderDetail from "./pages/OrderDetail"; // <<< YENİ: Sipariş detay sayfası
+import TrackOrder from "./pages/TrackOrder";
 
 import "./App.css"; // stiller burada toplanıyorsa dahil et
 
@@ -77,6 +78,15 @@ export default function App() {
   if (path.startsWith("/order/")) {
     return withBg(
       <OrderDetail />
+    );
+  }
+
+  // Sipariş takip: /track
+  if (path === "/track") {
+    return withBg(
+      <div className="page-wrapper">
+        <TrackOrder />
+      </div>
     );
   }
 

@@ -746,6 +746,9 @@ select.input option {
 .filters-sidebar {
   position: sticky;
   top: 120px;
+  align-self: start;
+  max-height: calc(100vh - 140px);
+  overflow: auto;
 }
 
 .filter-section {
@@ -769,6 +772,8 @@ select.input option {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  max-height: 320px;
+  overflow: auto;
 }
 
 .category-btn {
@@ -2783,10 +2788,22 @@ select.input option {
   .home-card{ width:min(680px, 96vw); }
   .cart-row{ grid-template-columns: 1.6fr .8fr .8fr .8fr .6fr; }
 }
-@media (max-width: 480px){
+@media (max-width: 900px){
   .row2{ grid-template-columns:1fr; }
   .home-card{ width:min(96vw, 96vw); }
   .cart-row{ grid-template-columns: 1.4fr .8fr .8fr .8fr .6fr; }
+}
+
+/* Admin ürün formu varyant alanları */
+.admin-form .variant-row{ display:grid; grid-template-columns: 1fr 120px 120px auto; gap:8px; align-items:center; }
+@media (max-width: 900px){ .admin-form .variant-row{ grid-template-columns: 1fr 1fr; } }
+@media (max-width: 600px){ .admin-form .variant-row{ grid-template-columns: 1fr; } }
+
+.admin-form .variant-controls{ display:flex; gap:8px; align-items:center; }
+.admin-form .variant-controls .input{ width:120px; }
+@media (max-width: 600px){
+  .admin-form .variant-controls{ flex-wrap:wrap; }
+  .admin-form .variant-controls .input{ width:100%; }
 }
 /* ---- Ürün Detay Modali ---- */
 .pdetail-card{ width:min(720px, 92vw); }

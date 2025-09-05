@@ -4,7 +4,7 @@ import { fetchProducts } from "./api/product";
 const nf = new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY" });
 
 export default function Home() {
-  const authedEmail = localStorage.getItem("authedEmail");
+  const authedEmail = localStorage.getItem("authedEmail") || sessionStorage.getItem("authedEmail");
   const users = JSON.parse(localStorage.getItem("users") || "[]");
   const me = users.find((u) => u.email === authedEmail);
   const name = me?.name || "Kullanıcı";
@@ -99,7 +99,29 @@ export default function Home() {
     });
     
     setFilteredItems(filtered);
+    // kalıcı tercihleri kaydet
+    localStorage.setItem("pref_selectedCategory", selectedCategory);
+    localStorage.setItem("pref_selectedBrand", selectedBrand);
+    localStorage.setItem("pref_priceRange", JSON.stringify(priceRange));
+    localStorage.setItem("pref_sortBy", sortBy);
+    localStorage.setItem("pref_searchTerm", searchTerm);
   }, [items, selectedCategory, selectedBrand, priceRange, searchTerm, sortBy]);
+
+  // Tercihleri yükle (ilk mount)
+  useEffect(() => {
+    try {
+      const sc = localStorage.getItem("pref_selectedCategory");
+      const sb = localStorage.getItem("pref_selectedBrand");
+      const pr = JSON.parse(localStorage.getItem("pref_priceRange") || "[0,10000]");
+      const so = localStorage.getItem("pref_sortBy");
+      const st = localStorage.getItem("pref_searchTerm");
+      if (sc) setSelectedCategory(sc);
+      if (sb) setSelectedBrand(sb);
+      if (Array.isArray(pr)) setPriceRange(pr);
+      if (so) setSortBy(so);
+      if (st) setSearchTerm(st);
+    } catch(e) {}
+  }, []);
 
   // Toast fonksiyonları
   const showToast = (title, message, type = "success") => {
@@ -116,17 +138,14 @@ export default function Home() {
   };
 
   const addToCart = (p) => {
+    // Stok kontrolü
+    if (p.stock !== undefined && p.stock <= 0) {
+      showToast("Stokta Yok", "Bu ürün şu anda stokta yok.", "error");
+      return;
+    }
     const old = JSON.parse(localStorage.getItem("cart") || "[]");
-    const ex = old.find((x) => x.id === p.id);
-    if (ex) ex.qty += 1;
-    else old.push({ 
-      id: p.id, 
-      name: p.name, 
-      price: p.price, 
-      qty: 1,
-      image: p.image,
-      category: p.category 
-    });
+    const ex = old.find((x) => x.id === p.id && !x.variant);
+    if (ex) ex.qty += 1; else old.push({ id: p.id, name: p.name, price: p.price, qty: 1, image: p.image, category: p.category });
     localStorage.setItem("cart", JSON.stringify(old));
     setCart(old); // State'i hemen güncelle
     window.dispatchEvent(new Event("cart-updated"));
@@ -136,14 +155,29 @@ export default function Home() {
 
   const gotoCart = () => (location.href = "/cart");
   const logout = () => {
+    if (!confirm("Çıkış yapmak istediğinizden emin misiniz?")) return;
     localStorage.removeItem("authed");
     localStorage.removeItem("authedEmail");
+    localStorage.removeItem("authedRole");
+    sessionStorage.removeItem("authed");
+    sessionStorage.removeItem("authedEmail");
+    sessionStorage.removeItem("authedRole");
     location.href = "/";
   };
 
-  const [profile, setProfile] = useState(() =>
-    JSON.parse(localStorage.getItem("profile") || "{}")
-  );
+  const [profile, setProfile] = useState(() => {
+    const p = JSON.parse(localStorage.getItem("profile") || "{}");
+    if (!Array.isArray(p.addresses)) p.addresses = [];
+    return p;
+  });
+  const [newAddress, setNewAddress] = useState({
+    label: "Ev",
+    full: "",
+    city: "",
+    zip: "",
+    phone: "",
+    isDefault: false,
+  });
   useEffect(() => {
     if (!profile.name && name) setProfile((p) => ({ ...p, name }));
     if (!profile.email && authedEmail)
@@ -152,6 +186,17 @@ export default function Home() {
   }, []);
   const saveProfile = (e) => {
     e.preventDefault();
+    // temel doğrulamalar
+    const emailOk = /.+@.+\..+/.test(profile.email || "");
+    if (!profile.name?.trim() || !emailOk) {
+      showToast("Hata", "Ad ve geçerli e-posta zorunludur.", "error");
+      return;
+    }
+    if (profile.phone && !/^\+?\d{10,15}$/.test(String(profile.phone).replace(/\s|-/g, ""))) {
+      showToast("Hata", "Telefon formatı geçersiz.", "error");
+      return;
+    }
+
     localStorage.setItem("profile", JSON.stringify(profile));
     
     // Profil verilerini kullanıcılar listesine de kaydet
@@ -177,6 +222,51 @@ export default function Home() {
     showToast("Başarılı", "Profil kaydedildi.");
   };
 
+  // Adres defteri işlemleri
+  const addAddress = () => {
+    const a = { ...newAddress };
+    if (!a.full.trim() || !a.city.trim()) {
+      showToast("Hata", "Adres ve şehir zorunludur.", "error");
+      return;
+    }
+    setProfile((p) => {
+      const list = Array.isArray(p.addresses) ? [...p.addresses] : [];
+      if (a.isDefault) list.forEach((x) => (x.isDefault = false));
+      list.push({ ...a, id: "addr_" + Date.now() });
+      const next = { ...p, addresses: list };
+      localStorage.setItem("profile", JSON.stringify(next));
+      const profiles = JSON.parse(localStorage.getItem("profiles") || "{}");
+      profiles[authedEmail] = next;
+      localStorage.setItem("profiles", JSON.stringify(profiles));
+      return next;
+    });
+    setNewAddress({ label: "Ev", full: "", city: "", zip: "", phone: "", isDefault: false });
+  };
+
+  const removeAddress = (id) => {
+    setProfile((p) => {
+      const list = (p.addresses || []).filter((x) => x.id !== id);
+      const next = { ...p, addresses: list };
+      localStorage.setItem("profile", JSON.stringify(next));
+      const profiles = JSON.parse(localStorage.getItem("profiles") || "{}");
+      profiles[authedEmail] = next;
+      localStorage.setItem("profiles", JSON.stringify(profiles));
+      return next;
+    });
+  };
+
+  const setDefaultAddress = (id) => {
+    setProfile((p) => {
+      const list = (p.addresses || []).map((x) => ({ ...x, isDefault: x.id === id }));
+      const next = { ...p, addresses: list };
+      localStorage.setItem("profile", JSON.stringify(next));
+      const profiles = JSON.parse(localStorage.getItem("profiles") || "{}");
+      profiles[authedEmail] = next;
+      localStorage.setItem("profiles", JSON.stringify(profiles));
+      return next;
+    });
+  };
+
   const orders = JSON.parse(localStorage.getItem("orders") || "[]").reverse();
 
   const cancelOrder = (orderId) => {
@@ -198,10 +288,10 @@ export default function Home() {
 
   const imgFor = (p) => {
     if (p.image) {
-      if (/^https?:\/\//.test(p.image) || p.image.startsWith("/")) return p.image;
+      if (/^https?:\/\//.test(p.image) || p.image.startsWith("/") || p.image.startsWith("data:")) return p.image;
       return `/products/${p.image}`;
     }
-    return `/products/${p.id}.jpg`;
+    return ""; // Admin görseli dışında otomatik görsel kullanma
   };
 
   const openDetailPage = (p) =>
@@ -440,16 +530,14 @@ export default function Home() {
                       className="product-image-modern"
                       onClick={() => openDetailPage(p)}
                     >
-                      <img
-                        src={imgFor(p)}
-                        alt={p.name}
-                        loading="lazy"
-                        onError={(e) => {
-                          e.currentTarget.src = `https://picsum.photos/seed/${encodeURIComponent(
-                            p.id
-                          )}/800/540`;
-                        }}
-                      />
+                      {imgFor(p) && (
+                        <img
+                          src={imgFor(p)}
+                          alt={p.name}
+                          loading="lazy"
+                          onError={(e) => (e.currentTarget.style.display = "none")}
+                        />
+                      )}
                       <div className="product-overlay">
                         <button className="quick-view-btn" onClick={() => openDetailPage(p)}>
                           <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -534,6 +622,66 @@ export default function Home() {
               </button>
             </form>
           </div>
+
+          {/* Adres Defteri */}
+          <div className="profile-card" style={{ marginTop: 16 }}>
+            <h2 className="section-title">Adres Defteri</h2>
+            <div className="form-row">
+              <div className="form-group">
+                <label className="label">Başlık</label>
+                <input className="input" value={newAddress.label} onChange={(e)=>setNewAddress({ ...newAddress, label:e.target.value })} placeholder="Ev / İş" />
+              </div>
+              <div className="form-group">
+                <label className="label">Şehir</label>
+                <input className="input" value={newAddress.city} onChange={(e)=>setNewAddress({ ...newAddress, city:e.target.value })} />
+              </div>
+            </div>
+            <div className="form-row">
+              <div className="form-group full-width">
+                <label className="label">Adres</label>
+                <input className="input" value={newAddress.full} onChange={(e)=>setNewAddress({ ...newAddress, full:e.target.value })} />
+              </div>
+              <div className="form-group">
+                <label className="label">Posta Kodu</label>
+                <input className="input" value={newAddress.zip} onChange={(e)=>setNewAddress({ ...newAddress, zip:e.target.value })} />
+              </div>
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label className="label">Telefon</label>
+                <input className="input" value={newAddress.phone} onChange={(e)=>setNewAddress({ ...newAddress, phone:e.target.value })} />
+              </div>
+              <div className="form-group">
+                <label className="label">Varsayılan</label>
+                <select className="input" value={newAddress.isDefault?"1":"0"} onChange={(e)=>setNewAddress({ ...newAddress, isDefault:e.target.value==="1" })}>
+                  <option value="0">Hayır</option>
+                  <option value="1">Evet</option>
+                </select>
+              </div>
+            </div>
+            <button className="btn-primary" onClick={addAddress}>
+              <span className="btn-label">Adresi Ekle</span>
+            </button>
+
+            <div className="orders-grid" style={{ marginTop: 12 }}>
+              {(profile.addresses || []).map((a) => (
+                <div key={a.id} className="order-card-modern" style={{ display: "grid", gridTemplateColumns: "1fr auto", alignItems: "center" }}>
+                  <div>
+                    <strong>{a.label}{a.isDefault?" (Varsayılan)":""}</strong>
+                    <div className="muted">{a.full}, {a.city} {a.zip || ""}</div>
+                    {a.phone && <div className="muted">Tel: {a.phone}</div>}
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    {!a.isDefault && (
+                      <button className="btn-ghost" onClick={()=>setDefaultAddress(a.id)}>Varsayılan Yap</button>
+                    )}
+                    <button className="btn-ghost" onClick={()=>removeAddress(a.id)}>Sil</button>
+                  </div>
+                </div>
+              ))}
+              {(profile.addresses || []).length === 0 && <p>Henüz kayıtlı adres yok.</p>}
+            </div>
+          </div>
         </div>
       )}
 
@@ -555,7 +703,7 @@ export default function Home() {
             ) : (
               <div className="orders-grid">
                 {orders.map((o) => (
-                  <div key={o.id} className="order-card-modern">
+                  <div key={o.id} className="order-card-modern" onClick={() => (location.href = `/order/${encodeURIComponent(o.id)}`)} style={{ cursor: "pointer" }}>
                     <div className="order-header">
                       <div className="order-id">#{o.id}</div>
                       <div className={`order-status ${

@@ -1,5 +1,6 @@
 // src/pages/OrderDetail.jsx
 import { useEffect, useState } from "react";
+import TrackOrder from "./TrackOrder";
 
 const nf = new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY" });
 
@@ -91,6 +92,9 @@ export default function OrderDetail() {
               </svg>
               Geri Dön
             </button>
+            <button className="btn-primary" onClick={() => setShowTrack(true)}>
+              <span className="btn-label">Kargo/Sipariş Takip</span>
+            </button>
           </div>
         </div>
       </header>
@@ -141,19 +145,19 @@ export default function OrderDetail() {
                 <div className="customer-info">
                   <div className="detail-item">
                     <span className="detail-label">Ad Soyad:</span>
-                    <span className="detail-value">{order.customerName || "Belirtilmemiş"}</span>
+                    <span className="detail-value">{order.customer?.name || order.name || "Belirtilmemiş"}</span>
                   </div>
                   <div className="detail-item">
                     <span className="detail-label">E-posta:</span>
-                    <span className="detail-value">{order.email || "Belirtilmemiş"}</span>
+                    <span className="detail-value">{order.email || order.customer?.email || "Belirtilmemiş"}</span>
                   </div>
                   <div className="detail-item">
                     <span className="detail-label">Telefon:</span>
-                    <span className="detail-value">{order.phone || "Belirtilmemiş"}</span>
+                    <span className="detail-value">{order.phone || order.customer?.phone || "Belirtilmemiş"}</span>
                   </div>
                   <div className="detail-item full-width">
                     <span className="detail-label">Adres:</span>
-                    <span className="detail-value">{order.address || "Belirtilmemiş"}</span>
+                    <span className="detail-value">{order.address || (order.customer ? `${order.customer.address || ""}${order.customer.city ? ", " + order.customer.city : ""} ${order.customer.zip || ""}` : "Belirtilmemiş")}</span>
                   </div>
                 </div>
               </div>
@@ -222,11 +226,11 @@ export default function OrderDetail() {
                   </div>
                   <div className="summary-row">
                     <span>Kargo:</span>
-                    <span className="free-shipping">Ücretsiz</span>
+                    <span className="free-shipping">{(order.shippingCost ?? 0) === 0 ? 'Ücretsiz' : nf.format(order.shippingCost || 0)}</span>
                   </div>
                   <div className="summary-row">
-                    <span>KDV (%20):</span>
-                    <span>{nf.format(((order.items || []).reduce((sum, item) => sum + (item.price * item.qty), 0)) * 0.2)}</span>
+                    <span>KDV:</span>
+                    <span>{nf.format(order.vat ?? 0)}</span>
                   </div>
                   <div className="summary-row total">
                     <span>Genel Toplam:</span>
@@ -234,6 +238,38 @@ export default function OrderDetail() {
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+        {/* Kargo/Sipariş Takip butonu (modal açar) */}
+        <div className="order-items-section">
+          <div className="order-detail-card">
+            <button className="btn-primary" onClick={() => {
+              const modal = document.createElement('div');
+              modal.className = 'modal';
+              modal.onclick = () => document.body.removeChild(modal);
+              const card = document.createElement('div');
+              card.className = 'modal-card';
+              card.style.maxWidth = '820px';
+              card.style.width = 'min(92vw, 820px)';
+              card.onclick = (e)=>e.stopPropagation();
+              const container = document.createElement('div');
+              container.id = 'track-embed';
+              card.appendChild(container);
+              modal.appendChild(card);
+              document.body.appendChild(modal);
+              setTimeout(() => {
+                import('./TrackOrder').then(mod => {
+                  const React = require('react');
+                  const ReactDOM = require('react-dom');
+                  ReactDOM.render(React.createElement(mod.default, { initialQuery: order?.id || order?.email || '', embedded: true }), container);
+                });
+              }, 0);
+            }}>
+              <span className="btn-label">Kargo / Sipariş Takip</span>
+            </button>
+            <div className="muted" style={{ marginTop: 8 }}>
+              {order.status ? `Ürününüz ${order.status.toLowerCase()}.` : ''}
             </div>
           </div>
         </div>

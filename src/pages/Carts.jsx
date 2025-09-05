@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 const nf = new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY" });
 
@@ -9,15 +9,55 @@ export default function Cart() {
 
   const profile = JSON.parse(localStorage.getItem("profile") || "{}");
 
-  const total = useMemo(() => cart.reduce((a, c) => a + c.price * c.qty, 0), [cart]);
+  const baseTotal = useMemo(() => cart.reduce((a, c) => a + c.price * c.qty, 0), [cart]);
+  const settings = useMemo(() => {
+    try { return JSON.parse(localStorage.getItem("siteSettings") || "{}"); } catch(e){ return {}; }
+  }, []);
+  const shippingCost = useMemo(() => {
+    const threshold = settings.freeShippingThreshold ?? 0;
+    const cost = settings.shippingCost ?? 0;
+    return baseTotal >= threshold ? 0 : cost;
+  }, [baseTotal, settings]);
+  const vat = useMemo(() => ((settings.vatRate ?? 20) / 100) * baseTotal, [baseTotal, settings]);
+  const coupons = useMemo(() => { try { return JSON.parse(localStorage.getItem("coupons") || "[]"); } catch(e){ return []; } }, []);
+  const [couponCode, setCouponCode] = useState("");
+  const couponDiscount = useMemo(() => {
+    const code = (couponCode || "").toUpperCase();
+    const c = coupons.find(x => x.code === code);
+    if (!c) return 0;
+    if (c.min && baseTotal < c.min) return 0;
+    if (c.exp && Date.now() > Date.parse(c.exp)) return 0;
+    return c.type === 'rate' ? baseTotal * (c.value/100) : c.value;
+  }, [couponCode, baseTotal, coupons]);
+  const total = useMemo(() => Math.max(0, baseTotal + shippingCost + vat - couponDiscount), [baseTotal, shippingCost, vat, couponDiscount]);
 
   const imgFor = (p) => {
     if (p.image) {
-      if (/^https?:\/\//.test(p.image) || p.image.startsWith("/")) return p.image;
+      if (/^https?:\/\//.test(p.image) || p.image.startsWith("/") || p.image.startsWith("data:")) return p.image;
       return `/products/${p.image}`;
     }
-    return `/products/${p.id}.jpg`;
+    return "";
   };
+
+  // Sepette resmi eksik olan ürünleri, ürün deposundan zenginleştir
+  useEffect(() => {
+    try {
+      const products = JSON.parse(localStorage.getItem("products") || "[]");
+      const enriched = cart.map((it) => {
+        if (it.image) return it;
+        const p = products.find((x) => x.id === it.id);
+        if (p && p.image) return { ...it, image: p.image };
+        return it;
+      });
+      const changed = JSON.stringify(enriched) !== JSON.stringify(cart);
+      if (changed) {
+        setCart(enriched);
+        localStorage.setItem("cart", JSON.stringify(enriched));
+      }
+    } catch (e) {}
+    // yalnızca ilk yüklemede çalışması yeterli
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const setQty = (id, qty) => {
     const next = cart.map((x) => (x.id === id ? { ...x, qty: Math.max(1, qty|0) } : x));
@@ -38,6 +78,7 @@ export default function Cart() {
     city: profile.city || "",
     zip: profile.zip || "",
     payment: "kredi",
+    addressId: (profile.addresses || []).find(a=>a.isDefault)?.id || "",
   });
 
   const placeOrder = (e) => {
@@ -51,11 +92,24 @@ export default function Cart() {
       customer: { ...form },
       items: cart,
       total,
+      vat,
+      shippingCost,
       status: "Sipariş Onay Bekliyor",
       email: form.email,
       name: form.name,
       cancelable: true
     };
+    // stok düş
+    try {
+      const products = JSON.parse(localStorage.getItem("products") || "[]");
+      const next = products.map((p) => {
+        const it = cart.find((c) => c.id === p.id);
+        if (!it) return p;
+        const left = Math.max(0, (p.stock ?? 0) - it.qty);
+        return { ...p, stock: left };
+      });
+      localStorage.setItem("products", JSON.stringify(next));
+    } catch (e) {}
     // kaydet
     const all = JSON.parse(localStorage.getItem("orders") || "[]");
     all.push(ord);
@@ -176,13 +230,13 @@ export default function Cart() {
             {cart.map((it) => (
                 <div key={it.id} className="cart-item-modern">
                   <div className="cart-item-image">
-                    <img 
-                      src={imgFor(it)} 
-                      alt={it.name}
-                      onError={(e) => {
-                        e.currentTarget.src = `https://picsum.photos/seed/${encodeURIComponent(it.id)}/200/200`;
-                      }}
-                  />
+                    {imgFor(it) && (
+                      <img 
+                        src={imgFor(it)} 
+                        alt={it.name}
+                        onError={(e) => (e.currentTarget.style.display = "none")}
+                      />
+                    )}
                 </div>
                   
                   <div className="cart-item-details">
@@ -234,12 +288,22 @@ export default function Cart() {
               
               <div className="summary-line">
                 <span>Ara Toplam</span>
-                <span>{nf.format(total)}</span>
+                <span>{nf.format(baseTotal)}</span>
               </div>
               <div className="summary-line">
                 <span>Kargo</span>
-                <span className="free-shipping">Ücretsiz</span>
+                <span>{shippingCost === 0 ? "Ücretsiz" : nf.format(shippingCost)}</span>
               </div>
+              <div className="summary-line">
+                <span>KDV</span>
+                <span>{nf.format(vat)}</span>
+              </div>
+              {couponDiscount > 0 && (
+                <div className="summary-line">
+                  <span>Kupon</span>
+                  <span>-{nf.format(couponDiscount)}</span>
+                </div>
+              )}
               <div className="summary-line total-line">
                 <span>Toplam</span>
                 <span className="total-amount">{nf.format(total)}</span>
@@ -281,6 +345,18 @@ export default function Cart() {
               
               <div className="form-section">
                 <h4 className="form-section-title">Teslimat Adresi</h4>
+                {(profile.addresses || []).length > 0 && (
+                  <div className="form-group">
+                    <label className="label">Kayıtlı Adresler</label>
+                    <select className="input" value={form.addressId} onChange={(e)=>{
+                      const id = e.target.value; setForm({ ...form, addressId: id });
+                      const found = (profile.addresses || []).find(a=>a.id===id); if(found){ setForm(f=>({ ...f, address: found.full, city: found.city, zip: found.zip, phone: f.phone||found.phone })); }
+                    }}>
+                      <option value="">Adres Seçin…</option>
+                      {(profile.addresses||[]).map(a=> <option key={a.id} value={a.id}>{a.label} {a.isDefault?"(Varsayılan)":""}</option>)}
+                    </select>
+                  </div>
+                )}
                 <div className="form-group">
                   <label className="label">Adres *</label>
                 <input className="input" value={form.address} onChange={(e)=>setForm({...form, address:e.target.value})} required/>
@@ -321,6 +397,13 @@ export default function Cart() {
               </label>
                 </div>
             </div>
+
+              <div className="form-section" style={{ marginTop: 6 }}>
+                <h4 className="form-section-title">Kupon</h4>
+                <div className="form-row">
+                  <input className="input" placeholder="Kupon Kodu" value={couponCode} onChange={(e)=>setCouponCode(e.target.value)} />
+                </div>
+              </div>
 
               <button className="btn-primary checkout-btn" type="submit">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">

@@ -43,6 +43,7 @@ export default function ProductDetail() {
   const id = decodeURIComponent(window.location.pathname.split("/product/")[1] || "");
   const [p, setP] = useState(null);
   const [qty, setQty] = useState(1);
+  const [selectedVariant, setSelectedVariant] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -59,17 +60,19 @@ export default function ProductDetail() {
   const imgFor = (prod) => {
     if (!prod) return "";
     if (prod.image) {
-      if (/^https?:\/\//.test(prod.image) || prod.image.startsWith("/")) return prod.image;
+      if (/^https?:\/\//.test(prod.image) || prod.image.startsWith("/") || prod.image.startsWith("data:")) return prod.image;
       return `/products/${prod.image}`;
     }
-    return `/products/${prod.id}.jpg`;
+    return "";
   };
 
   const addToCart = () => {
     const old = JSON.parse(localStorage.getItem("cart") || "[]");
     const ex = old.find((x) => x.id === p.id);
-    if (ex) ex.qty += qty;
-    else old.push({ id: p.id, name: p.name, price: p.price, qty });
+    const price = selectedVariant ? (p.variants?.find(v=>v.label===selectedVariant)?.price || p.price) : p.price;
+    const itemLabel = selectedVariant ? `${p.name} (${selectedVariant})` : p.name;
+    if (ex && !selectedVariant) ex.qty += qty;
+    else old.push({ id: p.id, name: itemLabel, price, qty, image: p.image, category: p.category, variant: selectedVariant });
     localStorage.setItem("cart", JSON.stringify(old));
     window.dispatchEvent(new Event("cart-changed"));
     push({ title: "Sepete eklendi", message: `${p.name} x${qty}` });
@@ -129,14 +132,14 @@ export default function ProductDetail() {
           {/* Product Images */}
           <div className="product-gallery">
             <div className="main-image">
-              <img
-                src={imgFor(p)}
-                alt={p.name}
-                loading="lazy"
-                onError={(e) => {
-                  e.currentTarget.src = `https://picsum.photos/seed/${encodeURIComponent(p.id)}/800/540`;
-                }}
-              />
+              {imgFor(p) && (
+                <img
+                  src={imgFor(p)}
+                  alt={p.name}
+                  loading="lazy"
+                  onError={(e) => (e.currentTarget.style.display = "none")}
+                />
+              )}
             </div>
           </div>
 
@@ -144,9 +147,18 @@ export default function ProductDetail() {
           <div className="product-info-detail">
             <div className="product-category-badge">{p.category}</div>
             <h1 className="product-title-detail">{p.name}</h1>
+            {Array.isArray(p.variants) && p.variants.length>0 && (
+              <div className="form" style={{ maxWidth: 320 }}>
+                <label className="label">{p.variantName || "Varyant"}</label>
+                <select className="input" value={selectedVariant} onChange={(e)=>setSelectedVariant(e.target.value)}>
+                  <option value="">Seçin…</option>
+                  {p.variants.map((v,i)=> <option key={i} value={v.label} disabled={v.stock<=0}>{v.label} {v.stock<=0?"(stok yok)":""} — {nf.format(v.price)}</option>)}
+                </select>
+              </div>
+            )}
             
             <div className="price-section-detail">
-              <span className="current-price">{nf.format(p.price)}</span>
+              <span className="current-price">{nf.format(selectedVariant ? (p.variants?.find(v=>v.label===selectedVariant)?.price || p.price) : p.price)}</span>
               <span className="price-note">KDV Dahil</span>
             </div>
 
