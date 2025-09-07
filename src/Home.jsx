@@ -23,6 +23,8 @@ export default function Home() {
   // Gelişmiş filtreler
   const [priceRange, setPriceRange] = useState([0, 10000]);
   const [selectedBrand, setSelectedBrand] = useState("Tümü");
+  const [onlyInStock, setOnlyInStock] = useState(false);
+  const [onlyWithVariants, setOnlyWithVariants] = useState(false);
   
   const categories = ["Tümü", "Kulaklık", "Klavye", "Mouse", "Hoparlör", "Aksesuar", "Kablo"];
   const brands = ["Tümü", "Logitech", "Corsair", "Aurora", "Razer", "SteelSeries", "HyperX"];
@@ -79,6 +81,14 @@ export default function Home() {
     filtered = filtered.filter(item => 
       item.price >= priceRange[0] && item.price <= priceRange[1]
     );
+    // Stok filtresi
+    if (onlyInStock) {
+      filtered = filtered.filter(item => (item.stock ?? 0) > 0);
+    }
+    // Varyant filtresi
+    if (onlyWithVariants) {
+      filtered = filtered.filter(item => Array.isArray(item.variants) && item.variants.length > 0);
+    }
     
     // Arama filtresi
     if (searchTerm) {
@@ -105,7 +115,7 @@ export default function Home() {
     localStorage.setItem("pref_priceRange", JSON.stringify(priceRange));
     localStorage.setItem("pref_sortBy", sortBy);
     localStorage.setItem("pref_searchTerm", searchTerm);
-  }, [items, selectedCategory, selectedBrand, priceRange, searchTerm, sortBy]);
+  }, [items, selectedCategory, selectedBrand, priceRange, searchTerm, sortBy, onlyInStock, onlyWithVariants]);
 
   // Tercihleri yükle (ilk mount)
   useEffect(() => {
@@ -449,6 +459,20 @@ export default function Home() {
                   />
                   <span>₺{priceRange[1]}</span>
                 </div>
+              </div>
+            </div>
+
+            <div className="filter-section">
+              <h3 className="filter-title">Durum</h3>
+              <div className="category-filters">
+                <label className="category-btn" style={{ display:"flex", alignItems:"center", gap:10 }}>
+                  <input type="checkbox" checked={onlyInStock} onChange={(e)=>setOnlyInStock(e.target.checked)} />
+                  Sadece stokta olanlar
+                </label>
+                <label className="category-btn" style={{ display:"flex", alignItems:"center", gap:10 }}>
+                  <input type="checkbox" checked={onlyWithVariants} onChange={(e)=>setOnlyWithVariants(e.target.checked)} />
+                  Varyantı bulunan ürünler
+                </label>
               </div>
             </div>
 

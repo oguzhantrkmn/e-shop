@@ -334,6 +334,27 @@ export default function AuthCard() {
                     <button type="button" className="link" onClick={toggle}>Giriş Yap</button>
                   </p>
                 </form>
+                {/* Özellikler / Güven unsurları */}
+                <div className="auth-extras">
+                  <div className="auth-features">
+                    <div className="auth-feature">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m20 6-11 11-5-5"/></svg>
+                      Kolay iade ve hızlı teslimat
+                    </div>
+                    <div className="auth-feature">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                      7/24 destek ve sipariş takibi
+                    </div>
+                    <div className="auth-feature">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 1v22M1 12h22"/></svg>
+                      Güvenli ödeme (3D Secure)
+                    </div>
+                    <div className="auth-feature">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                      Üye kampanyaları ve indirimler
+                    </div>
+                  </div>
+                </div>
               </div>
             </section>
 

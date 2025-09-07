@@ -58,6 +58,14 @@ export default function AdminLogin() {
           <button className="btn-primary" type="submit">
             <span className="btn-label">Giriş Yap</span>
           </button>
+          <div className="auth-extras">
+            <div className="auth-features">
+              <div className="auth-feature">Gelişmiş admin yetkileri</div>
+              <div className="auth-feature">Sipariş ve ürün yönetimi</div>
+              <div className="auth-feature">Hızlı raporlama</div>
+              <div className="auth-feature">Rol bazlı erişim</div>
+            </div>
+          </div>
           </form>
         </div>
       </div>
