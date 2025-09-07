@@ -5,9 +5,19 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>YKK Shop</title>
-    <img src="" alt="">
   </head>
   <body>
+    <!-- Sayfa yüklenirken logo animasyonu -->
+    <div id="app-loader" class="app-loader">
+      <div class="loader-inner">
+        <div class="logo-wrap">
+          <img src="/images/ykk-logo.png" alt="YKK" class="loader-logo" />
+        </div>
+        <div class="loader-ring"></div>
+        <div class="orbit o1"></div>
+        <div class="orbit o2"></div>
+      </div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

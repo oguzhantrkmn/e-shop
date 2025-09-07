@@ -31,6 +31,35 @@
   --pink1: #ff6b9d; --pink2: #ee5a6f;
 }
 
+/* Light tema değişkenleri */
+:root[data-theme="light"]{
+  /* Krem tonlu, gözü yormayan açık tema */
+  --bg-0: #f6f1e9;   /* krem taban */
+  --bg-1: #f3ede4;   /* sıcak bej */
+  --bg-2: #efe6d8;   /* açık şampanya */
+  --text: #1b2432;   /* koyu lacivert-gri */
+  --text-soft: #3b4758; 
+  --muted: #6b7280;
+  --card: rgba(255, 248, 235, 0.95);   /* krem kart */
+  --card-hover: #fff5e6;               /* hover’da hafif daha açık krem */
+  --border: rgba(27,36,50,0.10);
+  --border-bright: rgba(27,36,50,0.16);
+}
+
+/* Dark tema değişkenleri */
+:root[data-theme="dark"]{
+  --bg-0: #0f0f23;
+  --bg-1: #1a1a3a;
+  --bg-2: #2d1b69;
+  --text: #ffffff;
+  --text-soft: #e8e8ff;
+  --muted: #b8b8d9;
+  --card: rgba(255,255,255,0.12);
+  --card-hover: rgba(255,255,255,0.18);
+  --border: rgba(255,255,255,0.2);
+  --border-bright: rgba(255,255,255,0.3);
+}
+
 *{ box-sizing: border-box; }
 html, body, #root { height: 100%; }
 
@@ -158,6 +187,135 @@ button, input, select, textarea {
   overflow: hidden;            /* Auth sayfalarında scroll yok */
   gap: 40px;
 }
+
+/* --------- Global okunabilirlik (kontrast) --------- */
+body, .main-content, .panel, .home-card, .profile-card, .order-detail-card, .filter-section, .admin-section, .order-summary-card {
+  color: var(--text);
+}
+
+/* Light temada yazı kontrastını artır */
+:root[data-theme="light"] body {
+  color: #0f172a;
+}
+
+.label, .muted, .welcome-text, .product-description, .breadcrumb-current, .breadcrumb-link {
+  color: var(--text-soft);
+}
+
+.product-title-modern, .section-title, .site-logo, h1, h2, h3, h4, h5 {
+  color: var(--text);
+}
+
+/* --------- Navbar (animasyonlu) --------- */
+.main-header {
+  position: sticky;
+  top: 0;
+  overflow: hidden;
+  backdrop-filter: saturate(1.2) blur(12px);
+}
+.main-header::after{
+  content: "";
+  position: absolute;
+  left: -30%;
+  top: -120%;
+  width: 160%;
+  height: 300%;
+  background: conic-gradient(from 0deg,
+    rgba(255,176,120,.18), rgba(199,125,255,.14), rgba(255,140,140,.14), rgba(255,176,120,.18));
+  filter: blur(36px);
+  opacity: .28;
+  animation: navFlow 8s linear infinite;
+  pointer-events: none;
+}
+@keyframes navFlow{
+  0%{ transform: rotate(0deg) translateY(0); }
+  100%{ transform: rotate(360deg) translateY(0); }
+}
+
+/* nav tablara küçük parıltı */
+.nav-tab {
+  position: relative;
+}
+.nav-tab::after{
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: -3px; height: 3px;
+  background: linear-gradient(90deg, transparent, var(--accent), var(--accent-2), transparent);
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform .35s ease;
+}
+.nav-tab:hover::after, .nav-tab.active::after{ transform: scaleX(1); }
+
+/* --------- Loader (logo ile) --------- */
+.app-loader{
+  position: fixed; inset: 0; display: grid; place-items: center;
+  background: radial-gradient(60% 60% at 50% 40%, rgba(255,255,255,.9), rgba(255,255,255,.75) 60%, rgba(238,243,255,.8)),
+              linear-gradient(135deg, var(--bg-0), var(--bg-1), var(--bg-2));
+  z-index: 99999; transition: opacity .4s ease; opacity: 1; pointer-events: all;
+}
+.app-loader.hide{ opacity: 0; pointer-events: none; }
+.loader-inner{ position: relative; width: 180px; height: 180px; display: grid; place-items: center; }
+.logo-wrap{ width: 92px; height: 92px; border-radius: 16px; overflow: hidden; box-shadow: 0 15px 38px rgba(0,0,0,.12); background: rgba(255,255,255,.8); border: 1px solid var(--border); }
+.loader-logo{ width: 100%; height: 100%; object-fit: contain; display: block; }
+.loader-ring{ position: absolute; inset: 0; border-radius: 50%; padding: 6px; }
+.loader-ring::before{
+  content: ""; position: absolute; inset: 0; border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    rgba(0,212,255,.9), rgba(199,125,255,.9), rgba(255,107,157,.9), rgba(0,212,255,.9)
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent 68%, #000 70%);
+  mask: radial-gradient(farthest-side, transparent 68%, #000 70%);
+  filter: blur(0.2px);
+  animation: spin 1.8s linear infinite;
+}
+
+/* yörüngede dönen parıltılı noktalar */
+.orbit{ position:absolute; inset: 0; border-radius: 50%; pointer-events:none; }
+.orbit::after{
+  content:""; position:absolute; width:10px; height:10px; border-radius:50%;
+  background: radial-gradient(circle at 30% 30%, #fff, rgba(0,212,255,.6));
+  box-shadow: 0 0 18px rgba(0,212,255,.45);
+  top: -5px; left: 50%; transform: translateX(-50%);
+}
+.o1{ animation: orbit1 2.2s linear infinite; }
+.o2{ transform: scale(.78); animation: orbit2 2.6s linear infinite reverse; }
+@keyframes orbit1{ to{ transform: rotate(360deg); } }
+@keyframes orbit2{ to{ transform: rotate(-360deg) scale(.78); } }
+
+/* Light temada arka plan efektlerini yumuşat */
+:root[data-theme="light"] .bg-scene{ 
+  background: radial-gradient(1200px 500px at 30% 86%, rgba(255,176,120,0.14), rgba(255,188,146,0.08) 40%, rgba(0,0,0,0) 70%),
+              radial-gradient(800px 360px at 70% 82%, rgba(199,125,255,0.10), rgba(0,0,0,0) 60%),
+              linear-gradient(135deg, var(--bg-0) 0%, var(--bg-1) 60%, var(--bg-2) 100%);
+}
+:root[data-theme="light"] .beam{ opacity: .18; filter: blur(10px); }
+:root[data-theme="light"] .glow{ opacity: .20; }
+:root[data-theme="light"] .grain{ opacity: .03; }
+
+/* --------- Theme Toggle --------- */
+.theme-toggle{
+  position: fixed; right: 16px; bottom: 16px; z-index: 10001;
+  width: 48px; height: 48px; border-radius: 14px; border: 1px solid var(--border-bright);
+  background: linear-gradient(145deg, var(--card), rgba(255,255,255,.08));
+  display: grid; place-items: center; cursor: pointer;
+  box-shadow: 0 10px 30px rgba(0,0,0,.22);
+  overflow: hidden; backdrop-filter: blur(10px);
+}
+.theme-toggle .sun, .theme-toggle .moon{
+  position: absolute; width: 20px; height: 20px; border-radius: 50%; transition: transform .4s ease, opacity .4s ease;
+}
+.theme-toggle .sun{ background: radial-gradient(circle at 30% 30%, #fff59d, #ffd54f); box-shadow: 0 0 14px rgba(255,213,79,.6); transform: translateY(0); }
+.theme-toggle .moon{ background: radial-gradient(circle at 30% 30%, #d1d5db, #9ca3af); box-shadow: inset -3px -3px 6px rgba(0,0,0,.2); transform: translateY(24px); opacity: .0; }
+.theme-toggle .toggle-glow{ position:absolute; inset:-30%; background: radial-gradient(circle, rgba(0,212,255,.18), rgba(199,125,255,.18), rgba(255,107,157,.18)); filter: blur(24px); opacity:.25; animation: glowPulse 3s ease-in-out infinite; }
+@keyframes glowPulse{ 0%,100%{ opacity:.22 } 50%{ opacity:.35 } }
+
+:root[data-theme="dark"] .theme-toggle .sun{ transform: translateY(-24px); opacity: .0; }
+:root[data-theme="dark"] .theme-toggle .moon{ transform: translateY(0); opacity: 1; }
+
+.theme-pulse{ position:absolute; inset:0; border-radius:14px; border:2px solid var(--accent); animation: pulseOut .6s ease forwards; }
+@keyframes pulseOut{ from{ transform: scale(.9); opacity:.6 } to{ transform: scale(1.2); opacity:0 } }
 
 /* Logo alanı sol tarafta */
 .auth-logo-section {
@@ -738,7 +896,7 @@ select.input option {
 /* Shop Layout */
 .shop-container {
   display: grid;
-  grid-template-columns: 280px 1fr;
+  grid-template-columns: 320px 1fr; /* sol filtre alanını genişlettim */
   gap: 32px;
   align-items: start;
 }
@@ -749,13 +907,17 @@ select.input option {
   align-self: start;
   max-height: calc(100vh - 140px);
   overflow: auto;
+  /* scrollbar gizle */
+  scrollbar-width: none;        /* Firefox */
+  -ms-overflow-style: none;     /* IE/Edge */
 }
+.filters-sidebar::-webkit-scrollbar { display: none; } /* WebKit */
 
 .filter-section {
   background: linear-gradient(145deg, var(--card), rgba(255,255,255,0.08));
   border: 1px solid var(--border-bright);
   border-radius: 20px;
-  padding: 20px;
+  padding: 24px; /* panel iç boşluklarını artırdım */
   margin-bottom: 20px;
   backdrop-filter: blur(12px);
   box-shadow: 0 8px 25px rgba(0,0,0,.2);
@@ -774,7 +936,11 @@ select.input option {
   gap: 8px;
   max-height: 320px;
   overflow: auto;
+  /* scrollbar gizle */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
+.category-filters::-webkit-scrollbar { display: none; }
 
 .category-btn {
   padding: 12px 16px;
@@ -785,6 +951,7 @@ select.input option {
   cursor: pointer;
   text-align: left;
   transition: all 0.3s ease;
+  min-height: 44px; /* tıklanabilir alan büyüsün */
 }
 
 .category-btn:hover {
@@ -831,7 +998,7 @@ select.input option {
 }
 
 .products-header {
-  margin-bottom: 24px;
+  margin-bottom: 16px; /* üst boşluğu hafif azalt */
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1098,7 +1265,11 @@ select.input option {
 .mini-cart-items {
   max-height: 200px;
   overflow-y: auto;
+  /* scrollbar gizle */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
+.mini-cart-items::-webkit-scrollbar { display: none; }
 
 .mini-cart-item {
   display: flex;
@@ -1904,7 +2075,7 @@ select.input option {
   width: 100%;
   border-radius: 24px;
   padding: 28px;
-  background: linear-gradient(145deg, var(--card), rgba(255,255,255,0.08));
+  background: linear-gradient(145deg, var(--card), rgba(255,255,255,0.65));
   border: 1px solid var(--border-bright);
   backdrop-filter: blur(20px);
   box-shadow: 
@@ -1977,7 +2148,7 @@ select.input option {
   gap: 12px;
   border: 1px solid var(--border-bright);
   border-radius: 20px;
-  background: linear-gradient(145deg, var(--card), rgba(255,255,255,0.08));
+  background: linear-gradient(145deg, var(--card), rgba(255,255,255,0.65));
   padding: 16px;
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   backdrop-filter: blur(12px);
@@ -2251,7 +2422,11 @@ select.input option {
   flex-direction: column;
   gap: 16px;
   margin-top: 16px;
+  /* scrollbar gizleme alt yapısı gerekirse */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
+.order-items-list::-webkit-scrollbar { display: none; }
 
 .order-item-card {
   display: grid;
@@ -2593,7 +2768,7 @@ select.input option {
 /* Responsive Design */
 @media (max-width: 1200px) {
   .shop-container {
-    grid-template-columns: 250px 1fr;
+    grid-template-columns: 300px 1fr; /* biraz daha geniş */
     gap: 24px;
   }
   
@@ -3218,7 +3393,7 @@ select.input option {
 .price-inputs {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
 }
 
 .price-input {

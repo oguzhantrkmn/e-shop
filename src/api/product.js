@@ -32,6 +32,7 @@ export function saveProduct(prod) {
     if (!out.id) out.id = "p" + Date.now();
     out.price = Number(out.price) || 0;
     out.stock = out.stock == null ? 10 : Number(out.stock); // varsayılan stok
+
     if (Array.isArray(out.variants)) {
       out.variants = out.variants.map(function(v){ return { label: v.label || "", price: Number(v.price)||out.price, stock: Number(v.stock)||0 }; });
     }
