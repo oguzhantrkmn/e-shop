@@ -3,6 +3,54 @@ import ReactDOM from "react-dom/client";
 import App from "./App.jsx";
 import "./App.css";
 
+async function mountLottieInto(container) {
+  if (!container) return;
+  // Lottie'yi CDN'den yükle (bir kez)
+  if (!window.lottie) {
+    await new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = "https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.12.2/lottie.min.js";
+      s.async = true;
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    }).catch(() => {});
+  }
+  if (!window.lottie) return;
+
+  // Ayarlardan ya da public varsayılan dosyadan oku
+  let url = "";
+  try { url = JSON.parse(localStorage.getItem("siteSettings") || "{}").loadingLottie || ""; } catch(e) {}
+  if (!url) url = "/Loading animation blue.json"; // public içindeki varsayılan
+
+  // Eski animasyonu temizle
+  container.innerHTML = "";
+  container.style.width = "160px";
+  container.style.height = "160px";
+  container.style.margin = "0 auto";
+  window.lottie.loadAnimation({ container, renderer: "svg", loop: true, autoplay: true, path: url });
+}
+
+function ensureLoaderDOM() {
+  let el = document.getElementById("app-loader");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "app-loader";
+    el.className = "app-loader";
+    el.innerHTML = `
+      <div class="loader-inner">
+        <div id="lottie-slot"></div>
+      </div>
+    `;
+    document.body.appendChild(el);
+  } else if (!el.querySelector('#lottie-slot')) {
+    const slot = document.createElement('div');
+    slot.id = 'lottie-slot';
+    el.querySelector('.loader-inner')?.appendChild(slot);
+  }
+  return el;
+}
+
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <App />
@@ -11,7 +59,9 @@ ReactDOM.createRoot(document.getElementById("root")).render(
 
 // Sayfa hazır olduğunda loader'ı gizle
 window.addEventListener("load", () => {
-  const el = document.getElementById("app-loader");
+  const el = ensureLoaderDOM();
+  const slot = el.querySelector('#lottie-slot');
+  mountLottieInto(slot);
   if (!el) return;
   requestAnimationFrame(() => {
     el.classList.add("hide");
@@ -21,56 +71,14 @@ window.addEventListener("load", () => {
 
 // Sayfalar arası geçişte loader'ı göster
 const showLoader = () => {
-  let el = document.getElementById("app-loader");
-  if (!el) {
-    el = document.createElement("div");
-    el.id = "app-loader";
-    el.className = "app-loader";
-    el.innerHTML = `
-      <div class="loader-inner">
-        <div class="logo-wrap">
-          <img src="/images/ykk-logo.png" alt="YKK" class="loader-logo" />
-        </div>
-        <div class="loader-ring"></div>
-        <div class="orbit o1"></div>
-        <div class="orbit o2"></div>
-      </div>
-    `;
-    document.body.appendChild(el);
-  } else {
-    el.classList.remove("hide");
-  }
+  const el = ensureLoaderDOM();
+  el.classList.remove("hide");
+  const slot = el.querySelector('#lottie-slot');
+  mountLottieInto(slot);
 };
 
 window.addEventListener("beforeunload", () => {
   showLoader();
 });
 
-// Ekranın sağ altına animasyonlu tema anahtarı ekle
-const mountThemeToggle = () => {
-  if (document.getElementById("theme-toggle")) return;
-  const wrap = document.createElement("button");
-  wrap.id = "theme-toggle";
-  wrap.className = "theme-toggle";
-  wrap.title = "Tema değiştir";
-  wrap.innerHTML = `
-    <span class="sun"></span>
-    <span class="moon"></span>
-    <span class="toggle-glow"></span>
-  `;
-  wrap.addEventListener("click", (e) => {
-    const cur = document.documentElement.getAttribute("data-theme") || "light";
-    const next = cur === "light" ? "dark" : "light";
-    localStorage.setItem("theme", next);
-    document.documentElement.setAttribute("data-theme", next);
-    // küçük dalga animasyonu
-    const pulse = document.createElement("span");
-    pulse.className = "theme-pulse";
-    wrap.appendChild(pulse);
-    setTimeout(() => wrap.removeChild(pulse), 600);
-    window.dispatchEvent(new Event("themechange"));
-  });
-  document.body.appendChild(wrap);
-};
-
-window.addEventListener("DOMContentLoaded", mountThemeToggle);
+// Theme toggle removed in single-theme mode

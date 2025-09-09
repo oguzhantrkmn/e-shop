@@ -1,6 +1,7 @@
 // src/pages/ProductDetail.jsx
 import { useEffect, useState } from "react";
 import { fetchProducts } from "../api/product";
+import Loading from "../components/Loading";
 
 /* basit para formatlayıcı */
 const nf = new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY" });
@@ -68,11 +69,21 @@ export default function ProductDetail() {
 
   const addToCart = () => {
     const old = JSON.parse(localStorage.getItem("cart") || "[]");
-    const ex = old.find((x) => x.id === p.id);
+    const ex = old.find((x) => x.id === p.id && x.variant === (selectedVariant||""));
     const price = selectedVariant ? (p.variants?.find(v=>v.label===selectedVariant)?.price || p.price) : p.price;
     const itemLabel = selectedVariant ? `${p.name} (${selectedVariant})` : p.name;
-    if (ex && !selectedVariant) ex.qty += qty;
-    else old.push({ id: p.id, name: itemLabel, price, qty, image: p.image, category: p.category, variant: selectedVariant });
+    const stock = selectedVariant ? Number(p.variants?.find(v=>v.label===selectedVariant)?.stock || 0) : Number(p.stock ?? 0);
+    const maxPerUser = Number(p.maxPerUser || 0);
+    const currentQty = ex ? ex.qty : 0;
+    if (maxPerUser > 0 && currentQty + qty > maxPerUser) {
+      push({ title: "Limit", message: `Max alış sayısı ${maxPerUser}'dır`, type: "error" });
+      return;
+    }
+    if (stock > 0 && currentQty + qty > stock) {
+      push({ title: "Stok Yetersiz", message: `En fazla ${stock} adet ekleyebilirsiniz.`, type: "error" });
+      return;
+    }
+    if (ex) ex.qty += qty; else old.push({ id: p.id, name: itemLabel, price, qty, image: p.image, category: p.category, variant: selectedVariant || "" });
     localStorage.setItem("cart", JSON.stringify(old));
     window.dispatchEvent(new Event("cart-changed"));
     push({ title: "Sepete eklendi", message: `${p.name} x${qty}` });
@@ -80,8 +91,8 @@ export default function ProductDetail() {
 
   if (loading)
     return (
-      <div className="page-wrapper">
-        <div className="home-card">Yükleniyor…</div>
+      <div className="page-wrapper" style={{ display: 'grid', placeItems: 'center', minHeight: '60vh' }}>
+        <Loading src={(JSON.parse(localStorage.getItem("siteSettings")||"{}").loadingLottie)||""} size={160} />
       </div>
     );
 

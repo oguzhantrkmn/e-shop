@@ -1,6 +1,6 @@
 // src/pages/AdminPanel.jsx
 import { useEffect, useMemo, useState } from "react";
-import { fetchProducts, saveProduct, deleteProduct, fetchOrders, fetchUsers, updateOrderStatus, setOrderShippingInfo } from "../api/product";
+import { fetchProducts, fetchAllRaw, saveProduct, deleteProduct, fetchOrders, fetchUsers, updateOrderStatus, setOrderShippingInfo } from "../api/product";
 
 /* Basit toast (Home’daki ile uyumlu konteyner sınıfı) */
 function useToasts() {
@@ -49,11 +49,24 @@ export default function AdminPanel() {
   });
   useEffect(() => {
     localStorage.setItem("categories", JSON.stringify(categories));
+    try { window.dispatchEvent(new Event('categories-updated')); } catch(e) {}
   }, [categories]);
+
+  // markalar
+  const [brands, setBrands] = useState(() => {
+    const x = localStorage.getItem("brands");
+    return x ? JSON.parse(x) : ["Logitech", "Corsair", "Aurora", "Razer", "SteelSeries", "HyperX"];
+  });
+  useEffect(() => {
+    localStorage.setItem("brands", JSON.stringify(brands));
+    try { window.dispatchEvent(new Event('brands-updated')); } catch(e) {}
+  }, [brands]);
 
   // ürünler
   const [list, setList] = useState([]);
-  const reload = async () => setList(await fetchProducts());
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all"); // all | active | passive
+  const reload = async () => setList(await fetchAllRaw());
   useEffect(() => {
     reload();
   }, []);
@@ -69,6 +82,7 @@ export default function AdminPanel() {
     active: true,
     specs: [],
     stock: 10,
+    maxPerUser: 0,
     variantName: "",
     variants: [], // [{label, price, stock}]
   };
@@ -100,6 +114,38 @@ export default function AdminPanel() {
     try { return JSON.parse(localStorage.getItem("coupons") || "[]"); } catch(e){ return []; }
   });
   const saveCoupons = (next) => { setCoupons(next); localStorage.setItem("coupons", JSON.stringify(next)); };
+
+  // Dinamik filtre grupları (örn. Bağlantı Türü, RGB, Kablosuz vs.)
+  const [filterGroups, setFilterGroups] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('filterGroups') || '[]'); } catch(e){ return []; }
+  });
+  const saveFilterGroups = (next) => {
+    setFilterGroups(next);
+    localStorage.setItem('filterGroups', JSON.stringify(next));
+    try { window.dispatchEvent(new Event('filter-groups-updated')); } catch(e) {}
+  };
+
+  // Kategori/Marka yeniden adlandırma yardımcıları
+  const renameCategory = (oldLabel) => {
+    const next = prompt('Yeni kategori adı', oldLabel)?.trim();
+    if (!next || next === oldLabel) return;
+    const cats = categories.map(c => c === oldLabel ? next : c);
+    setCategories(cats);
+    const products = JSON.parse(localStorage.getItem('products') || '[]');
+    const updated = products.map(p => p.category === oldLabel ? { ...p, category: next } : p);
+    localStorage.setItem('products', JSON.stringify(updated));
+    reload();
+  };
+  const renameBrand = (oldLabel) => {
+    const next = prompt('Yeni marka adı', oldLabel)?.trim();
+    if (!next || next === oldLabel) return;
+    const bs = brands.map(b => b === oldLabel ? next : b);
+    setBrands(bs);
+    const products = JSON.parse(localStorage.getItem('products') || '[]');
+    const updated = products.map(p => (p.brand === oldLabel ? { ...p, brand: next } : p));
+    localStorage.setItem('products', JSON.stringify(updated));
+    reload();
+  };
 
   // file -> dataURL
   const onPickImage = async (file) => {
@@ -140,6 +186,17 @@ export default function AdminPanel() {
   const onSubmit = async (e) => {
     e.preventDefault();
     if (!form.name) return;
+    // negatif fiyat ve stok doğrulaması
+    const priceNum = Number(form.price || 0);
+    if (isNaN(priceNum) || priceNum < 0) {
+      push({ title: "Hata", message: "Fiyat 0'dan küçük olamaz.", type: "error" });
+      return;
+    }
+    const stockNum = Number(form.stock || 0);
+    if (stockNum < 0) {
+      push({ title: "Hata", message: "Stok 0'dan küçük olamaz.", type: "error" });
+      return;
+    }
     await saveProduct({ ...form });
     push({ title: editing ? "Ürün güncellendi" : "Ürün eklendi" });
     setForm(empty);
@@ -302,6 +359,18 @@ export default function AdminPanel() {
                 ))}
               </select>
 
+              <label className="label">Marka</label>
+              <select
+                className="input"
+                value={form.brand || ''}
+                onChange={(e)=>setForm({ ...form, brand: e.target.value })}
+              >
+                <option value="">Seçiniz</option>
+                {brands.map((b)=> (
+                  <option key={b} value={b}>{b}</option>
+                ))}
+              </select>
+
               <label className="label">Stok</label>
               <input
                 className="input"
@@ -310,6 +379,16 @@ export default function AdminPanel() {
                 step="1"
                 value={form.stock ?? 0}
                 onChange={(e) => setForm({ ...form, stock: Math.max(0, e.target.valueAsNumber || 0) })}
+              />
+
+              <label className="label">Max Alış (kullanıcı başına)</label>
+              <input
+                className="input"
+                type="number"
+                min="0"
+                step="1"
+                value={form.maxPerUser ?? 0}
+                onChange={(e) => setForm({ ...form, maxPerUser: Math.max(0, e.target.valueAsNumber || 0) })}
               />
 
               <label className="label">Görsel</label>
@@ -347,23 +426,16 @@ export default function AdminPanel() {
                 }
               />
 
-              {/* Varyantlar */}
-              <div className="label" style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                <span>Varyantlar (opsiyonel)</span>
-                <button type="button" className="link" onClick={addVariantRow}>+ varyant ekle</button>
-              </div>
-              <div className="row2" style={{ alignItems:'center' }}>
-                <input className="input" placeholder="Varyant adı (örn. Renk)" value={form.variantName||""} onChange={(e)=>setForm({ ...form, variantName: e.target.value })} />
-                <div className="muted">Aşağıda seçenekleri ve stok/fiyat girin.</div>
-              </div>
-              {(form.variants||[]).map((v,i)=> (
-                <div key={i} className="variant-row">
-                  <input className="input" placeholder="Seçenek (örn. Siyah)" value={v.label} onChange={(e)=>setVariantRow(i,'label', e.target.value)} />
-                  <input className="input" type="number" placeholder="Fiyat" value={v.price} onChange={(e)=>setVariantRow(i,'price', e.target.valueAsNumber)} />
-                  <input className="input" type="number" placeholder="Stok" value={v.stock} onChange={(e)=>setVariantRow(i,'stock', e.target.valueAsNumber)} />
-                  <div className="variant-controls">
-                    <button type="button" className="btn-ghost" onClick={()=>removeVariantRow(i)}>Sil</button>
-                  </div>
+              {/* Dinamik filtre grubuna göre seçenekler */}
+              {(filterGroups||[]).map((g, idx)=> (
+                <div key={idx}>
+                  <label className="label">{g.name}</label>
+                  <select className="input" value={(form.filters?.[g.name])||''} onChange={(e)=>{
+                    setForm(f=>({ ...f, filters: { ...(f.filters||{}), [g.name]: e.target.value } }));
+                  }}>
+                    <option value="">Seçiniz</option>
+                    {(g.options||[]).map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                  </select>
                 </div>
               ))}
 
@@ -441,6 +513,14 @@ export default function AdminPanel() {
             {/* Liste */}
             <div className="admin-list-section">
               <h3 className="admin-section-title">Ürün Listesi</h3>
+              <div className="row2" style={{ alignItems: 'center', marginBottom: 8 }}>
+                <input className="input" placeholder="Ara: ad, açıklama, kategori" value={search} onChange={(e)=>setSearch(e.target.value)} />
+                <select className="input" value={statusFilter} onChange={(e)=>setStatusFilter(e.target.value)}>
+                  <option value="all">Tümü</option>
+                  <option value="active">Aktif</option>
+                  <option value="passive">Pasif</option>
+                </select>
+              </div>
               <div className="adm-table">
                 <div className="adm-head">
                   <div>Ürün</div>
@@ -448,9 +528,16 @@ export default function AdminPanel() {
                   <div>Kat.</div>
                   <div>Stok</div>
                   <div>Durum</div>
-                  <div>İşlem</div>
+                  <div style={{ textAlign: 'right' }}>İşlem</div>
                 </div>
-                {list.map((p) => (
+                {list
+                  .filter(p => {
+                    const okStatus = statusFilter === 'all' ? true : statusFilter === 'active' ? p.active !== false : p.active === false;
+                    const q = search.trim().toLowerCase();
+                    const okSearch = !q || [p.name, p.description, p.category].some(v => String(v||"").toLowerCase().includes(q));
+                    return okStatus && okSearch;
+                  })
+                  .map((p) => (
                   <div key={p.id} className="adm-row">
                     <div title={p.name} className="ellipsis">
                       {p.name}
@@ -458,8 +545,15 @@ export default function AdminPanel() {
                     <div>₺{Number(p.price).toLocaleString("tr-TR")}</div>
                     <div>{p.category || "-"}</div>
                     <div>{p.stock ?? 0}</div>
-                    <div>{p.active ? "Aktif" : "Pasif"}</div>
-                    <div className="adm-actions">
+                    <div>
+                      <button className={`chip ${p.active!==false?"":"warn"}`} onClick={async()=>{
+                        const next = { ...p, active: p.active===false ? true : false };
+                        await saveProduct(next);
+                        push({ title: next.active?"Aktifleştirildi":"Pasife alındı" });
+                        reload();
+                      }}>{p.active!==false?"Aktif":"Pasif"}</button>
+                    </div>
+                    <div className="adm-actions" style={{ justifySelf: 'end' }}>
                       <button className="link" onClick={() => onEdit(p)}>
                         Düzenle
                       </button>
@@ -547,6 +641,128 @@ export default function AdminPanel() {
         {/* AYARLAR */}
         {tab === "settings" && (
           <div className="settings-layout">
+            {/* Excel (CSV) Dışa Aktarım */}
+            <div className="admin-section">
+              <h2 className="admin-section-title">Dışa Aktarım</h2>
+              <div className="row2">
+                <button className="btn-primary" onClick={async () => {
+                  const XLSX = await import('xlsx-js-style');
+                  const rows = list.map(p => ({ id:p.id, ad:p.name, fiyat:p.price, kategori:p.category, stok:p.stock??0, aktif:p.active!==false, maxAlis:p.maxPerUser??0 }));
+                  const wb = XLSX.utils.book_new();
+                  const ws = XLSX.utils.json_to_sheet(rows);
+
+                  const headers = rows[0] ? Object.keys(rows[0]) : [];
+                  const border = { top:{style:'thin', color:{rgb:'FFB7CBC6'}}, bottom:{style:'thin', color:{rgb:'FFB7CBC6'}}, left:{style:'thin', color:{rgb:'FFB7CBC6'}}, right:{style:'thin', color:{rgb:'FFB7CBC6'}} };
+                  headers.forEach((_, i) => {
+                    const addr = XLSX.utils.encode_cell({ r: 0, c: i });
+                    if (ws[addr]) ws[addr].s = {
+                      font: { bold: true, color: { rgb: 'FFFFFFFF' } },
+                      fill: { patternType: 'solid', fgColor: { rgb: 'FF1F7A6F' } },
+                      alignment: { horizontal: 'center', vertical: 'center' },
+                      border
+                    };
+                  });
+
+                  const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+                  for (let r = 1; r <= range.e.r; r++) {
+                    const bg = r % 2 === 0 ? 'FFF2FBF9' : 'FFFFFFFF';
+                    for (let c = 0; c <= range.e.c; c++) {
+                      const addr = XLSX.utils.encode_cell({ r, c });
+                      if (ws[addr]) ws[addr].s = {
+                        ...(ws[addr].s || {}),
+                        fill: { patternType: 'solid', fgColor: { rgb: bg } },
+                        border,
+                        alignment: { vertical: 'center' }
+                      };
+                    }
+                  }
+
+                  const keyToCol = Object.fromEntries(headers.map((h, i) => [h, i]));
+                  const range2 = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+                  const currencyCols = ['fiyat'];
+                  currencyCols.forEach((k) => {
+                    const c = keyToCol[k];
+                    if (c == null) return;
+                    for (let r = 1; r <= range2.e.r; r++) {
+                      const addr = XLSX.utils.encode_cell({ r, c });
+                      if (ws[addr]) {
+                        ws[addr].z = '#,##0.00 [$₺-tr-TR]';
+                        ws[addr].s = { ...(ws[addr].s||{}), alignment: { horizontal:'right', vertical:'center' } };
+                      }
+                    }
+                  });
+
+                  ws['!cols'] = headers.map((h) => {
+                    if (h === 'email') return { wch: 28 };
+                    if (h === 'ad') return { wch: 28 };
+                    if (h === 'kategori') return { wch: 18 };
+                    if (h === 'fiyat') return { wch: 14 };
+                    return { wch: Math.max(12, h.length + 2) };
+                  });
+
+                  XLSX.utils.book_append_sheet(wb, ws, 'Urunler');
+                  XLSX.writeFile(wb, `urunler-${new Date().toISOString().slice(0,10)}.xlsx`);
+                }}><span className="btn-label">Ürünleri Excel indir</span></button>
+                <button className="btn-ghost" onClick={async () => {
+                  const XLSX = await import('xlsx-js-style');
+                  const rows = orders.map(o => ({ id:o.id, tarih:new Date(o.date).toLocaleString('tr-TR'), email:o.email||'', toplam:o.total||0, durum:o.status||'' }));
+                  const wb = XLSX.utils.book_new();
+                  const ws = XLSX.utils.json_to_sheet(rows);
+
+                  const headers = rows[0] ? Object.keys(rows[0]) : [];
+                  const border = { top:{style:'thin', color:{rgb:'FFB7CBC6'}}, bottom:{style:'thin', color:{rgb:'FFB7CBC6'}}, left:{style:'thin', color:{rgb:'FFB7CBC6'}}, right:{style:'thin', color:{rgb:'FFB7CBC6'}} };
+                  headers.forEach((_, i) => {
+                    const addr = XLSX.utils.encode_cell({ r: 0, c: i });
+                    if (ws[addr]) ws[addr].s = {
+                      font: { bold: true, color: { rgb: 'FFFFFFFF' } },
+                      fill: { patternType: 'solid', fgColor: { rgb: 'FF3B7C8A' } },
+                      alignment: { horizontal: 'center', vertical: 'center' },
+                      border
+                    };
+                  });
+
+                  const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+                  for (let r = 1; r <= range.e.r; r++) {
+                    const bg = r % 2 === 0 ? 'FFF5F9FB' : 'FFFFFFFF';
+                    for (let c = 0; c <= range.e.c; c++) {
+                      const addr = XLSX.utils.encode_cell({ r, c });
+                      if (ws[addr]) ws[addr].s = {
+                        ...(ws[addr].s || {}),
+                        fill: { patternType: 'solid', fgColor: { rgb: bg } },
+                        border,
+                        alignment: { vertical: 'center' }
+                      };
+                    }
+                  }
+
+                  const keyToCol = Object.fromEntries(headers.map((h, i) => [h, i]));
+                  const range2 = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+                  const currencyCols = ['toplam'];
+                  currencyCols.forEach((k) => {
+                    const c = keyToCol[k];
+                    if (c == null) return;
+                    for (let r = 1; r <= range2.e.r; r++) {
+                      const addr = XLSX.utils.encode_cell({ r, c });
+                      if (ws[addr]) {
+                        ws[addr].z = '#,##0.00 [$₺-tr-TR]';
+                        ws[addr].s = { ...(ws[addr].s||{}), alignment: { horizontal:'right', vertical:'center' } };
+                      }
+                    }
+                  });
+
+                  ws['!cols'] = headers.map((h) => {
+                    if (h === 'email') return { wch: 30 };
+                    if (h === 'tarih') return { wch: 22 };
+                    if (h === 'durum') return { wch: 22 };
+                    if (h === 'toplam') return { wch: 16 };
+                    return { wch: Math.max(12, h.length + 2) };
+                  });
+
+                  XLSX.utils.book_append_sheet(wb, ws, 'Siparisler');
+                  XLSX.writeFile(wb, `siparisler-${new Date().toISOString().slice(0,10)}.xlsx`);
+                }}>Siparişleri Excel indir</button>
+              </div>
+            </div>
             {/* Kategori Yönetimi */}
             <div className="admin-section">
               <h2 className="admin-section-title">
@@ -572,9 +788,14 @@ export default function AdminPanel() {
                     {c}
                     <button
                       className="link"
-                      onClick={() =>
-                        setCategories(categories.filter((_, idx) => idx !== i))
-                      }
+                      onClick={() => renameCategory(c)}
+                      title="Yeniden adlandır"
+                    >
+                      ✎
+                    </button>
+                    <button
+                      className="link"
+                      onClick={() => setCategories(categories.filter((_, idx) => idx !== i))}
                       title="Sil"
                     >
                       ×
@@ -602,6 +823,27 @@ export default function AdminPanel() {
                 <div className="muted mt8">
                   Kategoriler ürün formundaki seçim kutusunda görünür.
                 </div>
+              </form>
+            </div>
+
+            {/* Marka Yönetimi */}
+            <div className="admin-section">
+              <h2 className="admin-section-title">Marka Yönetimi</h2>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+                {brands.map((b, i) => (
+                  <div key={i} className="chip" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    {b}
+                    <button className="link" title="Yeniden adlandır" onClick={() => renameBrand(b)}>✎</button>
+                    <button className="link" title="Sil" onClick={() => setBrands(brands.filter((_, idx) => idx !== i))}>×</button>
+                  </div>
+                ))}
+              </div>
+              <form className="form" onSubmit={(e)=>{ e.preventDefault(); const val = e.target.brand.value.trim(); if(!val) return; if(!brands.includes(val)) setBrands([...brands, val]); e.target.reset(); }}>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input name="brand" className="input" placeholder="Yeni marka adı" />
+                  <button className="btn-primary" style={{ width: 180 }}><span className="btn-label">Ekle</span></button>
+                </div>
+                <div className="muted mt8">Markalar ürün formundaki marka seçiminde görünür.</div>
               </form>
             </div>
 
@@ -671,6 +913,58 @@ export default function AdminPanel() {
                   <input name="couponExp" className="input" type="date" />
                 </div>
                 <button className="btn-primary" style={{ marginTop: 6 }}><span className="btn-label">Kupon Ekle</span></button>
+              </form>
+            </div>
+
+            {/* Dinamik Filtre Grupları */}
+            <div className="admin-section">
+              <h2 className="admin-section-title">Filtre Başlıkları</h2>
+              <div className="cart-table">
+                {(filterGroups || []).map((g, i) => (
+                  <div key={i}>
+                    <div className="cart-row" style={{ gridTemplateColumns: "1fr 1fr auto" }}>
+                      <div>
+                        <strong>{g.name}</strong>
+                      </div>
+                      <div className="muted">{(g.options||[]).length} seçenek</div>
+                      <div style={{ textAlign: 'right' }}>
+                        <button className="btn-ghost" onClick={()=>{
+                          const nm = prompt('Başlık adı', g.name) || g.name;
+                          const next = [...filterGroups];
+                          next[i] = { ...g, name: nm.trim() };
+                          saveFilterGroups(next);
+                        }}>Düzenle</button>
+                        <button className="btn-ghost" onClick={()=>saveFilterGroups(filterGroups.filter((_,x)=>x!==i))}>Sil</button>
+                      </div>
+                    </div>
+                    <div style={{ padding: 8 }}>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "6px 0" }}>
+                        {(g.options||[]).map((opt, j) => (
+                          <span key={j} className="chip" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            {opt}
+                            <button className="link" title="Sil" onClick={()=>{ const next=[...filterGroups]; next[i] = { ...g, options: (g.options||[]).filter((_,x)=>x!==j) }; saveFilterGroups(next); }}>×</button>
+                          </span>
+                        ))}
+                        {(g.options||[]).length===0 && <span className="muted">Henüz seçenek yok.</span>}
+                      </div>
+                      <form className="form" onSubmit={(e)=>{ e.preventDefault(); const raw = e.target.multi.value || ''; const arr = raw.split(',').map(s=>s.trim()).filter(Boolean); if(arr.length===0) return; const next=[...filterGroups]; const set = new Set([...(g.options||[]), ...arr]); next[i] = { ...g, options: Array.from(set) }; saveFilterGroups(next); e.target.reset(); }}>
+                        <div className="row2">
+                          <input name="multi" className="input" placeholder="Yeni seçenek(ler) (virgülle)" />
+                          <button className="btn-primary" style={{ width: 140 }}><span className="btn-label">Ekle</span></button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                ))}
+                {(filterGroups||[]).length===0 && <p>Henüz özel başlık yok.</p>}
+              </div>
+              <form className="form" onSubmit={(e)=>{ e.preventDefault(); const name = e.target.gname.value.trim(); const opts = e.target.gopts.value.split(',').map(s=>s.trim()).filter(Boolean); if(!name) return; saveFilterGroups([...(filterGroups||[]), { name, options: opts }]); e.target.reset(); }}>
+                <div className="row2">
+                  <input name="gname" className="input" placeholder="Yeni başlık (örn. Bağlantı Türü)" />
+                  <input name="gopts" className="input" placeholder="Seçenekler (virgülle)" />
+                </div>
+                <button className="btn-primary" style={{ marginTop: 6 }}><span className="btn-label">Başlık Ekle</span></button>
+                <div className="muted mt8">Bu başlıklar ürün formuna ve kullanıcı filtrelerine yansır.</div>
               </form>
             </div>
 
@@ -767,6 +1061,7 @@ export default function AdminPanel() {
                 <strong>Dikkat:</strong> Yedekleme işlemi tüm ürünler, siparişler ve kullanıcı verilerini içerir.
               </div>
             </div>
+
           </div>
         )}
 

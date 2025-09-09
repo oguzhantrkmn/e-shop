@@ -29,7 +29,7 @@ export default function AdminLogin() {
         />
       </div>
       <div className="auth-form-section">
-        <div className="panel" style={{ width: "min(440px, 92vw)", padding: 22 }}>
+        <div className="panel" style={{ width: "min(1040px, 96vw)", padding: 22, height: 720 }}>
           <form className="form" onSubmit={onSubmit}>
           <h2 className="form-title">Admin Giriş</h2>
 
@@ -58,14 +58,7 @@ export default function AdminLogin() {
           <button className="btn-primary" type="submit">
             <span className="btn-label">Giriş Yap</span>
           </button>
-          <div className="auth-extras">
-            <div className="auth-features">
-              <div className="auth-feature">Gelişmiş admin yetkileri</div>
-              <div className="auth-feature">Sipariş ve ürün yönetimi</div>
-              <div className="auth-feature">Hızlı raporlama</div>
-              <div className="auth-feature">Rol bazlı erişim</div>
-            </div>
-          </div>
+          {/* Admin login ekranında ek yazılar kaldırıldı */}
           </form>
         </div>
       </div>

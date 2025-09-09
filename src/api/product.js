@@ -30,8 +30,11 @@ export function saveProduct(prod) {
     var list = readStore();
     var out = Object.assign({}, prod);
     if (!out.id) out.id = "p" + Date.now();
-    out.price = Number(out.price) || 0;
+    var parsedPrice = Number(out.price) || 0;
+    if (parsedPrice < 0) parsedPrice = 0; // negatif fiyatı engelle
+    out.price = parsedPrice;
     out.stock = out.stock == null ? 10 : Number(out.stock); // varsayılan stok
+    out.maxPerUser = out.maxPerUser == null ? 0 : Number(out.maxPerUser);
 
     if (Array.isArray(out.variants)) {
       out.variants = out.variants.map(function(v){ return { label: v.label || "", price: Number(v.price)||out.price, stock: Number(v.stock)||0 }; });

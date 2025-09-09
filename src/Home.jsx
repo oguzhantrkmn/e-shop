@@ -25,9 +25,10 @@ export default function Home() {
   const [selectedBrand, setSelectedBrand] = useState("Tümü");
   const [onlyInStock, setOnlyInStock] = useState(false);
   const [onlyWithVariants, setOnlyWithVariants] = useState(false);
+  const [filterGroups, setFilterGroups] = useState(() => JSON.parse(localStorage.getItem('filterGroups')||'[]'));
   
-  const categories = ["Tümü", "Kulaklık", "Klavye", "Mouse", "Hoparlör", "Aksesuar", "Kablo"];
-  const brands = ["Tümü", "Logitech", "Corsair", "Aurora", "Razer", "SteelSeries", "HyperX"];
+  const [categories, setCategories] = useState(() => ["Tümü", ...JSON.parse(localStorage.getItem("categories") || "[]")]);
+  const [brands, setBrands] = useState(() => ["Tümü", ...JSON.parse(localStorage.getItem("brands") || "[]")]);
 
   useEffect(() => {
     let alive = true;
@@ -42,6 +43,21 @@ export default function Home() {
     })();
     return () => {
       alive = false;
+    };
+  }, []);
+
+  // Kategori/marka güncellemelerini canlı dinle
+  useEffect(() => {
+    const onCats = () => setCategories(["Tümü", ...JSON.parse(localStorage.getItem("categories") || "[]")]);
+    const onBrands = () => setBrands(["Tümü", ...JSON.parse(localStorage.getItem("brands") || "[]")]);
+    const onFG = () => setFilterGroups(JSON.parse(localStorage.getItem('filterGroups')||'[]'));
+    window.addEventListener('categories-updated', onCats);
+    window.addEventListener('brands-updated', onBrands);
+    window.addEventListener('filter-groups-updated', onFG);
+    return () => {
+      window.removeEventListener('categories-updated', onCats);
+      window.removeEventListener('brands-updated', onBrands);
+      window.removeEventListener('filter-groups-updated', onFG);
     };
   }, []);
 
@@ -69,12 +85,13 @@ export default function Home() {
       filtered = filtered.filter(item => item.category === selectedCategory);
     }
     
-    // Marka filtresi
+    // Marka filtresi (ürün brand alanına bakar; yoksa isim/açıklama fallback)
     if (selectedBrand !== "Tümü") {
-      filtered = filtered.filter(item => 
-        item.name.toLowerCase().includes(selectedBrand.toLowerCase()) ||
-        item.description?.toLowerCase().includes(selectedBrand.toLowerCase())
-      );
+      filtered = filtered.filter(item => {
+        if (item.brand) return item.brand === selectedBrand;
+        return item.name.toLowerCase().includes(selectedBrand.toLowerCase()) ||
+               item.description?.toLowerCase().includes(selectedBrand.toLowerCase());
+      });
     }
     
     // Fiyat aralığı filtresi
@@ -97,6 +114,14 @@ export default function Home() {
         item.description?.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
+
+    // Dinamik filtre grupları
+    (filterGroups||[]).forEach(g => {
+      const sel = localStorage.getItem('pref_fg_'+g.name) || 'Tümü';
+      if (sel && sel !== 'Tümü') {
+        filtered = filtered.filter(p => (p.filters||{})[g.name] === sel);
+      }
+    });
     
     // Sıralama
     filtered.sort((a, b) => {
@@ -155,6 +180,21 @@ export default function Home() {
     }
     const old = JSON.parse(localStorage.getItem("cart") || "[]");
     const ex = old.find((x) => x.id === p.id && !x.variant);
+
+    // maxPerUser kontrolü
+    const maxPerUser = Number(p.maxPerUser || 0);
+    const currentQty = ex ? ex.qty : 0;
+    if (maxPerUser > 0 && currentQty + 1 > maxPerUser) {
+      showToast("Limit", `Max alış sayısı ${maxPerUser}'dır`, "error");
+      return;
+    }
+    // stoğu aşma kontrolü
+    const stock = Number(p.stock ?? 0);
+    if (stock > 0 && currentQty + 1 > stock) {
+      showToast("Stok Yetersiz", `En fazla ${stock} adet ekleyebilirsiniz.`, "error");
+      return;
+    }
+
     if (ex) ex.qty += 1; else old.push({ id: p.id, name: p.name, price: p.price, qty: 1, image: p.image, category: p.category });
     localStorage.setItem("cart", JSON.stringify(old));
     setCart(old); // State'i hemen güncelle
@@ -208,6 +248,7 @@ export default function Home() {
     }
 
     localStorage.setItem("profile", JSON.stringify(profile));
+    // fotoğrafı ayrıca profiles objesine yazalım
     
     // Profil verilerini kullanıcılar listesine de kaydet
     const users = JSON.parse(localStorage.getItem("users") || "[]");
@@ -376,10 +417,14 @@ export default function Home() {
             
             <div className="user-menu">
               <button className="user-btn" onClick={() => setTab("profil")}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-                </svg>
-                Profil
+                {profile?.photo ? (
+                  <img src={profile.photo} alt="profil" style={{ width: 20, height: 20, borderRadius: '50%' }} />
+                ) : (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                  </svg>
+                )}
+                {profile?.photo ? '' : 'Profil'}
               </button>
               <button className="logout-btn" onClick={logout}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -469,10 +514,6 @@ export default function Home() {
                   <input type="checkbox" checked={onlyInStock} onChange={(e)=>setOnlyInStock(e.target.checked)} />
                   Sadece stokta olanlar
                 </label>
-                <label className="category-btn" style={{ display:"flex", alignItems:"center", gap:10 }}>
-                  <input type="checkbox" checked={onlyWithVariants} onChange={(e)=>setOnlyWithVariants(e.target.checked)} />
-                  Varyantı bulunan ürünler
-                </label>
               </div>
             </div>
 
@@ -505,6 +546,21 @@ export default function Home() {
                 ))}
               </div>
             </div>
+
+            {(filterGroups||[]).map((g) => (
+              <div className="filter-section" key={g.name}>
+                <h3 className="filter-title">{g.name}</h3>
+                <div className="category-filters">
+                  {["Tümü", ...(g.options||[])].map(opt => (
+                    <button
+                      key={opt}
+                      className={`category-btn ${ (localStorage.getItem('pref_fg_'+g.name)||'Tümü')===opt ? 'active':''}`}
+                      onClick={() => { localStorage.setItem('pref_fg_'+g.name, opt); setFilteredItems([...items]); }}
+                    >{opt}</button>
+                  ))}
+                </div>
+              </div>
+            ))}
             
             <div className="filter-section">
               <h3 className="filter-title">Sırala</h3>
@@ -564,10 +620,6 @@ export default function Home() {
                       )}
                       <div className="product-overlay">
                         <button className="quick-view-btn" onClick={() => openDetailPage(p)}>
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                            <path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-                          </svg>
                           Hızlı Görüntüle
                         </button>
                       </div>
@@ -608,6 +660,17 @@ export default function Home() {
           <div className="profile-card">
             <h2 className="section-title">Profilim</h2>
             <form className="profile-form-modern" onSubmit={saveProfile}>
+              <div className="form-row" style={{ alignItems: 'center' }}>
+                <div className="form-group">
+                  <label className="label">Fotoğraf</label>
+                  <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                    <img src={profile.photo || '/vite.svg'} alt="avatar" style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', background:'#2222' }} />
+                    <input type="file" accept="image/*" onChange={(e)=>{
+                      const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=()=> setProfile(p=>({ ...p, photo: r.result })); r.readAsDataURL(f);
+                    }} />
+                  </div>
+                </div>
+              </div>
               <div className="form-row">
                 <div className="form-group">
                   <label className="label">Ad Soyad</label>

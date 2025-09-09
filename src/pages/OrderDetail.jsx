@@ -22,7 +22,7 @@ export default function OrderDetail() {
         <header className="main-header">
           <div className="header-content">
             <div className="logo-section">
-              <h1 className="site-logo">YKKshop Admin</h1>
+              <h1 className="site-logo">YKKshop</h1>
               <span className="welcome-text">Sipariş Detayı</span>
             </div>
             <div className="header-actions">
@@ -52,7 +52,7 @@ export default function OrderDetail() {
         <header className="main-header">
           <div className="header-content">
             <div className="logo-section">
-              <h1 className="site-logo">YKKshop Admin</h1>
+              <h1 className="site-logo">YKKshop</h1>
               <span className="welcome-text">Sipariş Detayı</span>
             </div>
             <div className="header-actions">
@@ -81,7 +81,7 @@ export default function OrderDetail() {
       <header className="main-header">
         <div className="header-content">
           <div className="logo-section">
-            <h1 className="site-logo">YKKshop Admin</h1>
+            <h1 className="site-logo">YKKshop</h1>
             <span className="welcome-text">Sipariş #{order.id}</span>
           </div>
           <div className="header-actions">
@@ -91,9 +91,6 @@ export default function OrderDetail() {
                 <path d="M12 19l-7-7 7-7"/>
               </svg>
               Geri Dön
-            </button>
-            <button className="btn-primary" onClick={() => setShowTrack(true)}>
-              <span className="btn-label">Kargo/Sipariş Takip</span>
             </button>
           </div>
         </div>
@@ -242,7 +239,7 @@ export default function OrderDetail() {
           </div>
         </div>
         {/* Kargo/Sipariş Takip butonu (modal açar) */}
-        <div className="order-items-section">
+        <div className="order-detail-container" style={{ marginTop: 20 }}>
           <div className="order-detail-card">
             <button className="btn-primary" onClick={() => {
               const modal = document.createElement('div');
@@ -250,21 +247,42 @@ export default function OrderDetail() {
               modal.onclick = () => document.body.removeChild(modal);
               const card = document.createElement('div');
               card.className = 'modal-card';
-              card.style.maxWidth = '820px';
-              card.style.width = 'min(92vw, 820px)';
               card.onclick = (e)=>e.stopPropagation();
-              const container = document.createElement('div');
-              container.id = 'track-embed';
-              card.appendChild(container);
+              card.innerHTML = `
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px">
+                  <h3 class="admin-section-title" style="margin:0">Kargo / Sipariş Takip</h3>
+                  <button id="modal-close" class="btn-ghost">Kapat</button>
+                </div>
+                <form class="form" id="track-form">
+                  <div class="track-grid">
+                    <input class="input" name="oid" placeholder="Sipariş No" value="${order?.id||''}">
+                    <input class="input" name="email" placeholder="E-posta" value="${order?.email||''}">
+                  </div>
+                  <button class="btn-primary" style="margin-top:8px"><span class="btn-label">Sorgula</span></button>
+                </form>
+                <div id="track-result" style="margin-top:12px"></div>
+              `;
               modal.appendChild(card);
               document.body.appendChild(modal);
-              setTimeout(() => {
-                import('./TrackOrder').then(mod => {
-                  const React = require('react');
-                  const ReactDOM = require('react-dom');
-                  ReactDOM.render(React.createElement(mod.default, { initialQuery: order?.id || order?.email || '', embedded: true }), container);
-                });
-              }, 0);
+              const closeBtn = card.querySelector('#modal-close');
+              if (closeBtn) closeBtn.onclick = () => { document.body.removeChild(modal); };
+              card.querySelector('#track-form').onsubmit = (e) => {
+                e.preventDefault();
+                const oid = e.target.oid.value.trim();
+                const mail = e.target.email.value.trim();
+                const ship = order.shipping || {};
+                const html = `
+                  <div class="cart-table">
+                    <div class="cart-row" style="grid-template-columns:1fr 1fr 1fr">
+                      <div><strong>Durum</strong><div class="muted">${order.status||'—'}</div></div>
+                      <div><strong>Kargo</strong><div class="muted">${ship.carrier||'—'}</div></div>
+                      <div><strong>Takip No</strong><div class="muted">${ship.trackingNumber||'—'}</div></div>
+                    </div>
+                  </div>
+                  <div class="muted" style="margin-top:8px">Sorgu: ${oid} ${mail?`• ${mail}`:''}</div>
+                `;
+                card.querySelector('#track-result').innerHTML = html;
+              };
             }}>
               <span className="btn-label">Kargo / Sipariş Takip</span>
             </button>

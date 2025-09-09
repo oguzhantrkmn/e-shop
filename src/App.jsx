@@ -1,5 +1,5 @@
 // src/App.jsx
-import { useEffect } from "react";
+// Single-theme mode: no theme switching needed
 import AuthCard from "./components/AuthCard";
 import Home from "./Home";
 import Cart from "./pages/Carts";        // sende Carts.jsx ise bu yolu koru
@@ -14,20 +14,7 @@ import "./App.css"; // stiller burada toplanıyorsa dahil et
 export default function App() {
   const path = window.location.pathname;
 
-  // Rota bazlı tema: login/admin-login sayfaları koyu, diğerleri açık
-  useEffect(() => {
-    const pref = localStorage.getItem("theme");
-    const isAuth = path === "/" || path === "/admin" || path === "/admin-login";
-    const theme = pref || (isAuth ? "dark" : "light");
-    document.documentElement.setAttribute("data-theme", theme);
-
-    const onThemeChange = () => {
-      const t = localStorage.getItem("theme") || theme;
-      document.documentElement.setAttribute("data-theme", t);
-    };
-    window.addEventListener("themechange", onThemeChange);
-    return () => window.removeEventListener("themechange", onThemeChange);
-  }, [path]);
+  // Theme switching removed; single palette is applied globally via CSS variables
 
   // Ortak animasyonlu arka plan
   const withBg = (node) => (
