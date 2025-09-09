@@ -29,8 +29,8 @@ export default function AdminLogin() {
         />
       </div>
       <div className="auth-form-section">
-        <div className="panel" style={{ width: "min(1040px, 96vw)", padding: 22, height: 720 }}>
-          <form className="form" onSubmit={onSubmit}>
+        <div className="panel" style={{ width: "min(720px, 96vw)", padding: 22, height: 520 }}>
+          <form className="form" style={{maxWidth: 480, width: '100%'}} onSubmit={onSubmit}>
           <h2 className="form-title">Admin Giriş</h2>
 
           <label className="label">E-posta</label>
