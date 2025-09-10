@@ -204,14 +204,14 @@ export default function Home() {
       return;
     }
 
-    if (ex) ex.qty += 1; else old.push({ id: p.id, name: p.name, price: p.price, qty: 1, category: p.category });
+    if (ex) ex.qty += 1; else old.push({ id: p.id, name: p.name, price: p.price, qty: 1, category: p.category, image: p.image || "" });
     // Büyük verileri (örn. base64 image) saklamayalım ve kota hatasına karşı güvenli yazalım
     let next = old;
     try {
       localStorage.setItem("cart", JSON.stringify(next));
     } catch (e) {
       try {
-        next = next.map((it) => ({ id: it.id, name: it.name, price: it.price, qty: it.qty, category: it.category, variant: it.variant || "" }));
+        next = next.map((it) => ({ id: it.id, name: it.name, price: it.price, qty: it.qty, category: it.category, variant: it.variant || "", image: it.image || "" }));
         localStorage.setItem("cart", JSON.stringify(next));
         showToast("Bilgi", "Tarayıcı hafızası optimize edildi.", "info");
       } catch (_) {
@@ -685,7 +685,7 @@ export default function Home() {
                 <div className="form-group">
                   <label className="label">Fotoğraf</label>
                   <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                    <img src={profile.photo || '/vite.svg'} alt="avatar" style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', background:'#2222' }} />
+                    <img src={profile.photo || '/images/ykk-logo.png'} alt="avatar" style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', background:'#2222' }} />
                     <input type="file" accept="image/*" onChange={(e)=>{
                       const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=()=> setProfile(p=>({ ...p, photo: r.result })); r.readAsDataURL(f);
                     }} />

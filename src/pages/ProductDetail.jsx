@@ -83,14 +83,14 @@ export default function ProductDetail() {
       push({ title: "Stok Yetersiz", message: `En fazla ${stock} adet ekleyebilirsiniz.`, type: "error" });
       return;
     }
-    if (ex) ex.qty += qty; else old.push({ id: p.id, name: itemLabel, price, qty, category: p.category, variant: selectedVariant || "" });
+    if (ex) ex.qty += qty; else old.push({ id: p.id, name: itemLabel, price, qty, category: p.category, variant: selectedVariant || "", image: p.image || "" });
     // Büyük verileri saklamadan güvenli yazım
     let next = old;
     try {
       localStorage.setItem("cart", JSON.stringify(next));
     } catch (e) {
       try {
-        next = next.map((it) => ({ id: it.id, name: it.name, price: it.price, qty: it.qty, category: it.category, variant: it.variant || "" }));
+        next = next.map((it) => ({ id: it.id, name: it.name, price: it.price, qty: it.qty, category: it.category, variant: it.variant || "", image: it.image || "" }));
         localStorage.setItem("cart", JSON.stringify(next));
         push({ title: "Bilgi", message: "Tarayıcı hafızası optimize edildi.", type: "info" });
       } catch (_) {

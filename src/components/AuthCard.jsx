@@ -173,18 +173,7 @@ export default function AuthCard() {
   };
 
   return (
-    <>
-      <div className="auth-logo-section">
-        <img 
-          src="/images/ykk-logo.png" 
-          alt="YKK Logo" 
-          className="auth-logo"
-          onError={(e) => {
-            e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 100'%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23fff' font-size='20'%3EYKK%3C/text%3E%3C/svg%3E";
-          }}
-        />
-      </div>
-      <div className="auth-form-section">
+    <div className="auth-form-section">
         <div className="auth-card">
           <div className={`flip-card ${mode === "register" ? "flipped" : ""}`}>
             <div className="flip-inner">
@@ -342,7 +331,6 @@ export default function AuthCard() {
             </div>
           </div>
         </div>
-      </div>
-    </>
+    </div>
   );
 }

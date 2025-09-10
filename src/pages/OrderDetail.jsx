@@ -4,6 +4,15 @@ import TrackOrder from "./TrackOrder";
 
 const nf = new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY" });
 
+// Ürün görseli için doğru yol fonksiyonu
+const imgFor = (item) => {
+  if (item.image) {
+    if (/^https?:\/\//.test(item.image) || item.image.startsWith("/") || item.image.startsWith("data:")) return item.image;
+    return `/products/${item.image}`;
+  }
+  return ""; // Fallback görsel yok
+};
+
 export default function OrderDetail() {
   const orderId = decodeURIComponent(window.location.pathname.split("/order/")[1] || "");
   const [order, setOrder] = useState(null);
@@ -196,7 +205,7 @@ export default function OrderDetail() {
                     <div key={index} className="order-item-card">
                       <div className="item-image">
                         <img 
-                          src={item.image || `https://picsum.photos/seed/${item.id}/100/100`}
+                          src={imgFor(item) || `https://picsum.photos/seed/${item.id}/100/100`}
                           alt={item.name}
                           onError={(e) => {
                             e.currentTarget.src = `https://picsum.photos/seed/${item.id}/100/100`;

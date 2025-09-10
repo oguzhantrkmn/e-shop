@@ -1,33 +1,30 @@
 // src/App.jsx
 // Single-theme mode: no theme switching needed
-import AuthCard from "./components/AuthCard";
-import Home from "./Home";
-import Cart from "./pages/Carts";        // sende Carts.jsx ise bu yolu koru
-import AdminLogin from "./pages/AdminLogin";
-import AdminPanel from "./pages/AdminPanel";
-import ProductDetail from "./pages/ProductDetail"; // <<< YENİ: Ürün detay sayfası
-import OrderDetail from "./pages/OrderDetail"; // <<< YENİ: Sipariş detay sayfası
-import TrackOrder from "./pages/TrackOrder";
-
+import { Suspense, lazy } from "react";
 import "./App.css"; // stiller burada toplanıyorsa dahil et
+
+// Lazy loading ile componentleri sadece gerektiğinde yükle
+const AuthCard = lazy(() => import("./components/AuthCard"));
+const Home = lazy(() => import("./Home"));
+const Cart = lazy(() => import("./pages/Carts"));
+const AdminLogin = lazy(() => import("./pages/AdminLogin"));
+const AdminPanel = lazy(() => import("./pages/AdminPanel"));
+const ProductDetail = lazy(() => import("./pages/ProductDetail"));
+const OrderDetail = lazy(() => import("./pages/OrderDetail"));
+const TrackOrder = lazy(() => import("./pages/TrackOrder"));
 
 export default function App() {
   const path = window.location.pathname;
 
   // Theme switching removed; single palette is applied globally via CSS variables
 
-  // Ortak animasyonlu arka plan
+  // Basit arka plan
   const withBg = (node) => (
     <>
-      <div className="bg-scene">
-        <div className="beam b1"></div>
-        <div className="beam b2"></div>
-        <div className="beam b3"></div>
-        <div className="floor-glow"></div>
-        <div className="glow"></div>
-        <div className="grain"></div>
-      </div>
-      {node}
+      <div className="bg-scene"></div>
+      <Suspense fallback={<div className="loading-state"><div className="loading-spinner"></div></div>}>
+        {node}
+      </Suspense>
     </>
   );
 
@@ -71,9 +68,9 @@ export default function App() {
   // Ürün detay sayfası: /product/:id
   if (path.startsWith("/product/")) {
     return withBg(
-      // ProductDetail kendi içinde page-wrapper kullanıyorsa
-      // ekstra bir wrapper gerekmiyor; yoksa eklemekte sakınca yok.
-      <ProductDetail />
+      <div className="page-wrapper">
+        <ProductDetail />
+      </div>
     );
   }
 

@@ -61,13 +61,13 @@ export default function Cart() {
   const setQty = (id, qty) => {
     const next = cart.map((x) => (x.id === id ? { ...x, qty: Math.max(1, qty|0) } : x));
     setCart(next);
-    const minimal = next.map((it) => ({ id: it.id, name: it.name, price: it.price, qty: it.qty, category: it.category, variant: it.variant || "" }));
+    const minimal = next.map((it) => ({ id: it.id, name: it.name, price: it.price, qty: it.qty, category: it.category, variant: it.variant || "", image: it.image || "" }));
     try { localStorage.setItem("cart", JSON.stringify(minimal)); } catch (_) {}
   };
   const removeItem = (id) => {
     const next = cart.filter((x) => x.id !== id);
     setCart(next);
-    const minimal = next.map((it) => ({ id: it.id, name: it.name, price: it.price, qty: it.qty, category: it.category, variant: it.variant || "" }));
+    const minimal = next.map((it) => ({ id: it.id, name: it.name, price: it.price, qty: it.qty, category: it.category, variant: it.variant || "", image: it.image || "" }));
     try { localStorage.setItem("cart", JSON.stringify(minimal)); } catch (_) {}
   };
 
@@ -87,7 +87,7 @@ export default function Cart() {
     if (!cart.length) return alert("Sepet boş.");
     // temel doğrulamalar
     for (const k of ["name","email","address","city"]) if (!form[k]?.trim()) return alert("Lütfen gerekli alanları doldurun.");
-    const minimalItems = cart.map((it) => ({ id: it.id, name: it.name, price: it.price, qty: it.qty, category: it.category, variant: it.variant || "" }));
+    const minimalItems = cart.map((it) => ({ id: it.id, name: it.name, price: it.price, qty: it.qty, category: it.category, variant: it.variant || "", image: it.image || "" }));
     const ord = {
       id: `S${Date.now()}`,
       date: new Date().toISOString(),
@@ -142,36 +142,208 @@ export default function Cart() {
     if (!order) return;
     try {
       const { jsPDF } = await import("jspdf");
-      const doc = new jsPDF();
-      let y = 14;
+      const doc = new jsPDF({ unit: "mm", format: "a4" });
+
+      // Türkçe karakterleri ASCII'ye çevir (örn. ş->s, ğ->g); para birimi simgesi ₺ -> TL
+      const toAscii = (s = "") => String(s)
+        .replace(/\u00A0/g, " ")
+        .replace(/[çğıöşüÇĞİÖŞÜâêîôû₺]/g, (ch) => ({
+          "ç":"c","ğ":"g","ı":"i","ö":"o","ş":"s","ü":"u",
+          "Ç":"C","Ğ":"G","İ":"I","Ö":"O","Ş":"S","Ü":"U",
+          "â":"a","ê":"e","î":"i","ô":"o","û":"u","₺":"TL"
+        }[ch] || ch));
+      const formatMoney = (v = 0) => {
+        const raw = nf.format(Number(v) || 0);
+        const digits = raw.replace(/[^0-9.,-]/g, "");
+        return `TL ${digits}`;
+      };
+
+      // --- Logo'yu yükle ve siyaha boya ---
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const loadBlackLogo = async () => {
+        try {
+          const img = new Image();
+          img.crossOrigin = "anonymous";
+          img.src = "/images/ykk-logo.png";
+          await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
+          const canvas = document.createElement("canvas");
+          canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0);
+          const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const d = data.data;
+          for (let i = 0; i < d.length; i += 4) {
+            const a = d[i + 3];
+            if (a > 0) { d[i] = 0; d[i + 1] = 0; d[i + 2] = 0; } // siyaha boya
+          }
+          ctx.putImageData(data, 0, 0);
+          const url = canvas.toDataURL("image/png");
+          // Görseli mantıklı mm ölçülerine çevir (en = 36mm)
+          const wmm = 36;
+          const hmm = (img.naturalHeight / img.naturalWidth) * wmm;
+          return { url, wmm, hmm };
+        } catch (_) { return { url: null, wmm: 0, hmm: 0 }; }
+      };
+      const { url: logoUrl, wmm: logoW, hmm: logoH } = await loadBlackLogo();
+
+      // --- Tema renkleri (App.css ile uyumlu) ---
+      const TEXT = [8, 7, 8];          // #080708
+      const ACCENT = [59, 96, 228];    // #3B60E4
+      const MUTED = [92, 92, 104];     // #5C5C68
+
+      // --- Türkçe karakter desteği için font göm (varsa) ---
+      try {
+        const res = await fetch("/fonts/Quicksand-VariableFont_wght.ttf");
+        const buf = await res.arrayBuffer();
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+        doc.addFileToVFS("Quicksand.ttf", base64);
+        doc.addFont("Quicksand.ttf", "Quicksand", "normal");
+        doc.setFont("Quicksand", "normal");
+      } catch (_) {}
+
+      // --- Header + Logo ---
+      const logoY = 10;
+      if (logoUrl) {
+        const logoX = (pageWidth - logoW) / 2;
+        doc.addImage(logoUrl, "PNG", logoX, logoY, logoW, logoH, undefined, "FAST");
+      }
+      const lineY = logoY + (logoH || 0) + 4;
+      doc.setDrawColor(...ACCENT);
+      doc.setFillColor(ACCENT[0], ACCENT[1], ACCENT[2]);
+      doc.rect(10, lineY, 190, 1.2, "F");
+
+      // Sağ üst: FATURA ve sipariş bilgileri (logo ile çakışmayacak yükseklikte)
+      doc.setTextColor(...TEXT);
       doc.setFontSize(16);
-      doc.text(`Sipariş ${order.id}`, 14, y); y += 8;
+      doc.text(toAscii("FATURA"), 190, logoY + (logoH || 10) / 2 + 2, { align: "right" });
+      doc.setFontSize(11);
+      doc.setTextColor(...MUTED);
+      doc.text(toAscii(`Siparis No: ${order.id}`), 190, logoY + (logoH || 10) / 2 + 8, { align: "right" });
+      doc.text(toAscii(`Tarih: ${new Date(order.date).toLocaleString("tr-TR")}`) , 190, logoY + (logoH || 10) / 2 + 13, { align: "right" });
+
+      // Sol: Satıcı bilgileri (çizgi altına)
       doc.setFontSize(12);
-      doc.text(`Tarih: ${new Date(order.date).toLocaleString("tr-TR")}`, 14, y); y += 8;
-      doc.text(`Müşteri: ${order.customer.name}`, 14, y); y += 6;
-      doc.text(`Email: ${order.customer.email}  Tel: ${order.customer.phone || "-"}`, 14, y); y += 6;
-      doc.text(`Adres: ${order.customer.address}, ${order.customer.city} ${order.customer.zip || ""}`, 14, y); y += 10;
-      doc.text("Ürünler:", 14, y); y += 6;
-      order.items.forEach((i) => {
-        doc.text(`- ${i.name}  x${i.qty}  ${nf.format(i.price*i.qty)}`, 18, y);
+      doc.setTextColor(...MUTED);
+      doc.text(toAscii("Satici: YKKshop • ykkshop.example"), 14, lineY + 8);
+
+      // --- Alıcı / Teslimat ---
+      doc.setTextColor(...TEXT);
+      doc.setFontSize(12);
+      let y = lineY + 18;
+      doc.text(toAscii("Fatura/Teslimat Bilgileri"), 14, y); y += 6;
+      doc.setFontSize(10);
+      doc.setTextColor(...MUTED);
+      const cust = order.customer || {};
+      const lines = [
+        toAscii(`Ad Soyad: ${cust.name || "-"}`),
+        toAscii(`E-posta: ${cust.email || "-"}`),
+        toAscii(`Telefon: ${cust.phone || "-"}`),
+        toAscii(`Adres: ${cust.address || "-"}`),
+        toAscii(`Sehir/PK: ${cust.city || "-"} ${cust.zip || ""}`),
+      ];
+      lines.forEach((t) => { doc.text(t, 14, y); y += 5; });
+
+      // --- Ürünler Tablosu ---
+      y += 2;
+      doc.setDrawColor(230);
+      doc.setFillColor(240, 242, 255);
+      doc.setTextColor(...TEXT);
+      doc.setFontSize(11);
+
+      const colX = { urun: 14, adet: 120, birim: 160, toplam: 195 };
+      const rowH = 7;
+
+      // Header row
+      doc.rect(12, y - 5, 186, rowH + 4, "F");
+      doc.text(toAscii("Urun"), colX.urun, y);
+      doc.text(toAscii("Adet"), colX.adet, y, { align: "center" });
+      doc.text(toAscii("Birim Fiyat"), colX.birim, y, { align: "right" });
+      doc.text(toAscii("Ara Toplam"), colX.toplam, y, { align: "right" });
+      y += rowH;
+
+      doc.setFontSize(10);
+      doc.setTextColor(...MUTED);
+      doc.setDrawColor(235);
+
+      const addRow = (i) => {
+        doc.line(12, y + 2, 198, y + 2);
+        doc.setTextColor(...TEXT);
+        const name = i.name || "Urun";
+        const qty = `${i.qty || 1}`;
+        const unit = formatMoney(i.price || 0);
+        const lineTotal = formatMoney((i.price || 0) * (i.qty || 1));
+        doc.text(toAscii(name), colX.urun, y);
+        doc.setTextColor(...MUTED);
+        doc.text(qty, colX.adet, y, { align: "center" });
+        doc.text(unit, colX.birim, y, { align: "right" });
+        doc.setTextColor(...TEXT);
+        doc.text(lineTotal, colX.toplam, y, { align: "right" });
+      };
+
+      for (const it of (order.items || [])) {
+        if (y > 250) { doc.addPage(); y = 20; }
+        addRow(it);
+        y += rowH;
+      }
+
+      // --- Özet ---
+      y += 6;
+      const baseSum = (order.items || []).reduce((a, c) => a + (c.price || 0) * (c.qty || 1), 0);
+      const ship = Number(order.shippingCost || 0);
+      const kdv = Number(order.vat || 0);
+      const totalVal = Number(order.total || (baseSum + ship + kdv));
+
+      const summary = [];
+      summary.push([toAscii("Ara Toplam"), formatMoney(baseSum)]);
+      summary.push([toAscii("Kargo"), ship === 0 ? toAscii("Ucretsiz") : formatMoney(ship)]);
+      summary.push([toAscii("KDV"), formatMoney(kdv)]);
+      summary.push([toAscii("Genel Toplam"), formatMoney(totalVal)]);
+
+      doc.setFontSize(11);
+      for (let i = 0; i < summary.length; i++) {
+        const [label, val] = summary[i];
+        const bold = i === summary.length - 1;
+        if (bold) doc.setTextColor(...TEXT); else doc.setTextColor(...MUTED);
+        doc.text(label, 126, y);
+        if (bold) doc.setTextColor(...TEXT); else doc.setTextColor(...MUTED);
+        doc.text(val, 198, y, { align: "right" });
         y += 6;
-      });
-      y += 4;
-      doc.text(`Toplam: ${nf.format(order.total)}`, 14, y);
+      }
+
+      // --- Dipnot ---
+        y += 6;
+      doc.setTextColor(...MUTED);
+      doc.setFontSize(9);
+      doc.text(toAscii("Bu belge elektronik ortamda olusturulmustur."), 14, y);
+
       doc.save(`siparis-${order.id}.pdf`);
     } catch (e) {
       // jsPDF yoksa düz metin indir
+      const toAscii = (s = "") => String(s)
+        .replace(/\u00A0/g, " ")
+        .replace(/[çğıöşüÇĞİÖŞÜâêîôû₺]/g, (ch) => ({
+          "ç":"c","ğ":"g","ı":"i","ö":"o","ş":"s","ü":"u",
+          "Ç":"C","Ğ":"G","İ":"I","Ö":"O","Ş":"S","Ü":"U",
+          "â":"a","ê":"e","î":"i","ô":"o","û":"u","₺":"TL"
+        }[ch] || ch));
+      const formatMoney = (v = 0) => `TL ${nf.format(Number(v)||0).replace(/[^0-9.,-]/g, "")}`;
+      const baseSum = (order.items || []).reduce((a, c) => a + (c.price || 0) * (c.qty || 1), 0);
+      const ship = Number(order.shippingCost || 0);
+      const kdv = Number(order.vat || 0);
+      const totalVal = Number(order.total || (baseSum + ship + kdv));
       const txt = [
-        `Sipariş ${order.id}`,
-        `Tarih: ${new Date(order.date).toLocaleString("tr-TR")}`,
-        `Müşteri: ${order.customer.name}`,
-        `Email: ${order.customer.email} Tel: ${order.customer.phone || "-"}`,
-        `Adres: ${order.customer.address}, ${order.customer.city} ${order.customer.zip || ""}`,
-        ``,
-        `Ürünler:`,
-        ...order.items.map(i=>`- ${i.name} x${i.qty} ${nf.format(i.price*i.qty)}`),
-        ``,
-        `Toplam: ${nf.format(order.total)}`
+        toAscii(`Siparis ${order.id}`),
+        toAscii(`Tarih: ${new Date(order.date).toLocaleString("tr-TR")}`),
+        toAscii(`Musteri: ${order.customer.name}`),
+        toAscii(`Adres: ${order.customer.address}, ${order.customer.city} ${order.customer.zip || ""}`),
+        "",
+        toAscii("Urunler:"),
+        ...(order.items||[]).map(i=>toAscii(`- ${i.name} x${i.qty} ${formatMoney(i.price*i.qty)}`)),
+        "",
+        toAscii(`Ara Toplam: ${formatMoney(baseSum)}`),
+        toAscii(`Kargo: ${ship===0?"Ucretsiz":formatMoney(ship)}`),
+        toAscii(`KDV: ${formatMoney(kdv)}`),
+        toAscii(`Genel Toplam: ${formatMoney(totalVal)}`)
       ].join("\n");
       const blob = new Blob([txt], { type: "text/plain" });
       const a = document.createElement("a");
