@@ -22,6 +22,7 @@ export default function Home() {
   
   // Gelişmiş filtreler
   const [priceRange, setPriceRange] = useState([0, 10000]);
+  const [priceMax, setPriceMax] = useState(10000);
   const [selectedBrand, setSelectedBrand] = useState("Tümü");
   const [onlyInStock, setOnlyInStock] = useState(false);
   const [onlyWithVariants, setOnlyWithVariants] = useState(false);
@@ -38,6 +39,14 @@ export default function Home() {
       if (alive) {
         setItems(data);
         setFilteredItems(data);
+        // Ürünlerin maksimum fiyatına göre slider üst limitini belirle
+        const mx = Math.max(0, ...data.map((p) => Number(p.price) || 0));
+        const dynMax = Math.max(10000, Math.ceil(mx / 100) * 100);
+        setPriceMax(dynMax);
+        // Kullanıcı bir tercih kaydetmemişse varsayılanı tüm aralık yap
+        if (!localStorage.getItem("pref_priceRange")) {
+          setPriceRange([0, dynMax]);
+        }
         setLoading(false);
       }
     })();
@@ -147,7 +156,7 @@ export default function Home() {
     try {
       const sc = localStorage.getItem("pref_selectedCategory");
       const sb = localStorage.getItem("pref_selectedBrand");
-      const pr = JSON.parse(localStorage.getItem("pref_priceRange") || "[0,10000]");
+      const pr = JSON.parse(localStorage.getItem("pref_priceRange") || "null");
       const so = localStorage.getItem("pref_sortBy");
       const st = localStorage.getItem("pref_searchTerm");
       if (sc) setSelectedCategory(sc);
@@ -195,9 +204,21 @@ export default function Home() {
       return;
     }
 
-    if (ex) ex.qty += 1; else old.push({ id: p.id, name: p.name, price: p.price, qty: 1, image: p.image, category: p.category });
-    localStorage.setItem("cart", JSON.stringify(old));
-    setCart(old); // State'i hemen güncelle
+    if (ex) ex.qty += 1; else old.push({ id: p.id, name: p.name, price: p.price, qty: 1, category: p.category });
+    // Büyük verileri (örn. base64 image) saklamayalım ve kota hatasına karşı güvenli yazalım
+    let next = old;
+    try {
+      localStorage.setItem("cart", JSON.stringify(next));
+    } catch (e) {
+      try {
+        next = next.map((it) => ({ id: it.id, name: it.name, price: it.price, qty: it.qty, category: it.category, variant: it.variant || "" }));
+        localStorage.setItem("cart", JSON.stringify(next));
+        showToast("Bilgi", "Tarayıcı hafızası optimize edildi.", "info");
+      } catch (_) {
+        // Son çare: state güncellensin, kullanıcı akışı bozulmasın
+      }
+    }
+    setCart(next);
     window.dispatchEvent(new Event("cart-updated"));
 
     showToast("Sepete Eklendi", `${p.name} x1`);
@@ -487,7 +508,7 @@ export default function Home() {
                     type="number"
                     placeholder="Max"
                     value={priceRange[1]}
-                    onChange={(e) => setPriceRange([priceRange[0], Number(e.target.value) || 10000])}
+                    onChange={(e) => setPriceRange([priceRange[0], Math.min(priceMax, Number(e.target.value) || priceMax)])}
                     className="price-input"
                   />
                 </div>
@@ -496,7 +517,7 @@ export default function Home() {
                   <input 
                     type="range"
                     min="0"
-                    max="10000"
+                    max={priceMax}
                     step="100"
                     value={priceRange[1]}
                     onChange={(e) => setPriceRange([priceRange[0], Number(e.target.value)])}

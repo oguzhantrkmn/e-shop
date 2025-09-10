@@ -39,7 +39,7 @@ export default function Cart() {
     return "";
   };
 
-  // Sepette resmi eksik olan ürünleri, ürün deposundan zenginleştir
+  // Sepette resmi eksik olan ürünleri, yalnızca UI için zenginleştir (localStorage'a geri yazma)
   useEffect(() => {
     try {
       const products = JSON.parse(localStorage.getItem("products") || "[]");
@@ -52,7 +52,6 @@ export default function Cart() {
       const changed = JSON.stringify(enriched) !== JSON.stringify(cart);
       if (changed) {
         setCart(enriched);
-        localStorage.setItem("cart", JSON.stringify(enriched));
       }
     } catch (e) {}
     // yalnızca ilk yüklemede çalışması yeterli
@@ -62,12 +61,14 @@ export default function Cart() {
   const setQty = (id, qty) => {
     const next = cart.map((x) => (x.id === id ? { ...x, qty: Math.max(1, qty|0) } : x));
     setCart(next);
-    localStorage.setItem("cart", JSON.stringify(next));
+    const minimal = next.map((it) => ({ id: it.id, name: it.name, price: it.price, qty: it.qty, category: it.category, variant: it.variant || "" }));
+    try { localStorage.setItem("cart", JSON.stringify(minimal)); } catch (_) {}
   };
   const removeItem = (id) => {
     const next = cart.filter((x) => x.id !== id);
     setCart(next);
-    localStorage.setItem("cart", JSON.stringify(next));
+    const minimal = next.map((it) => ({ id: it.id, name: it.name, price: it.price, qty: it.qty, category: it.category, variant: it.variant || "" }));
+    try { localStorage.setItem("cart", JSON.stringify(minimal)); } catch (_) {}
   };
 
   const [form, setForm] = useState({
@@ -86,11 +87,12 @@ export default function Cart() {
     if (!cart.length) return alert("Sepet boş.");
     // temel doğrulamalar
     for (const k of ["name","email","address","city"]) if (!form[k]?.trim()) return alert("Lütfen gerekli alanları doldurun.");
+    const minimalItems = cart.map((it) => ({ id: it.id, name: it.name, price: it.price, qty: it.qty, category: it.category, variant: it.variant || "" }));
     const ord = {
       id: `S${Date.now()}`,
       date: new Date().toISOString(),
       customer: { ...form },
-      items: cart,
+      items: minimalItems,
       total,
       vat,
       shippingCost,
@@ -110,10 +112,25 @@ export default function Cart() {
       });
       localStorage.setItem("products", JSON.stringify(next));
     } catch (e) {}
-    // kaydet
-    const all = JSON.parse(localStorage.getItem("orders") || "[]");
-    all.push(ord);
-    localStorage.setItem("orders", JSON.stringify(all));
+    // kaydet (kota aşımı için güvenli yazım)
+    try {
+      const all = JSON.parse(localStorage.getItem("orders") || "[]");
+      all.push(ord);
+      localStorage.setItem("orders", JSON.stringify(all));
+    } catch (e) {
+      try {
+        const existing = JSON.parse(localStorage.getItem("orders") || "[]")
+          .map((o) => ({
+            ...o,
+            items: (o.items || []).map((it) => ({ id: it.id, name: it.name, price: it.price, qty: it.qty, category: it.category, variant: it.variant || "" }))
+          }));
+        existing.push(ord);
+        localStorage.setItem("orders", JSON.stringify(existing));
+      } catch (_) {
+        alert("Tarayıcı hafızası dolu görünüyor. Lütfen tarayıcı verilerini temizleyin veya daha az öğe ile deneyin.");
+        return;
+      }
+    }
     setOrder(ord);
     setShowModal(true);
     // sepeti temizle
