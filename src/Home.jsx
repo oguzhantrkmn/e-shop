@@ -24,6 +24,9 @@ export default function Home() {
   const [priceRange, setPriceRange] = useState([0, 10000]);
   const [priceMax, setPriceMax] = useState(10000);
   const [selectedBrand, setSelectedBrand] = useState("Tümü");
+  const [brandQuery, setBrandQuery] = useState("");
+  const [categoryQuery, setCategoryQuery] = useState("");
+  const [fgQueries, setFgQueries] = useState({});
   const [onlyInStock, setOnlyInStock] = useState(false);
   const [onlyWithVariants, setOnlyWithVariants] = useState(false);
   const [filterGroups, setFilterGroups] = useState(() => JSON.parse(localStorage.getItem('filterGroups')||'[]'));
@@ -39,14 +42,13 @@ export default function Home() {
       if (alive) {
         setItems(data);
         setFilteredItems(data);
-        // Ürünlerin maksimum fiyatına göre slider üst limitini belirle
-        const mx = Math.max(0, ...data.map((p) => Number(p.price) || 0));
+        // Aktif (stok > 0) ürünlerin maksimum fiyatına göre slider üst limitini belirle
+        const active = data.filter((p) => (Number(p.stock ?? 0)) > 0);
+        const mx = Math.max(0, ...active.map((p) => Number(p.price) || 0));
         const dynMax = Math.max(10000, Math.ceil(mx / 100) * 100);
         setPriceMax(dynMax);
-        // Kullanıcı bir tercih kaydetmemişse varsayılanı tüm aralık yap
-        if (!localStorage.getItem("pref_priceRange")) {
-          setPriceRange([0, dynMax]);
-        }
+        // Her açılışta slider'ı maksimumdan başlat
+        setPriceRange([0, dynMax]);
         setLoading(false);
       }
     })();
@@ -225,8 +227,8 @@ export default function Home() {
   };
 
   const gotoCart = () => (location.href = "/cart");
-  const logout = () => {
-    if (!confirm("Çıkış yapmak istediğinizden emin misiniz?")) return;
+  const [showLogout, setShowLogout] = useState(false);
+  const doLogout = () => {
     localStorage.removeItem("authed");
     localStorage.removeItem("authedEmail");
     localStorage.removeItem("authedRole");
@@ -447,7 +449,7 @@ export default function Home() {
                 )}
                 {profile?.photo ? '' : 'Profil'}
               </button>
-              <button className="logout-btn" onClick={logout}>
+              <button className="logout-btn" onClick={() => setShowLogout(true)}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
                   <polyline points="16,17 21,12 16,7"/>
@@ -513,7 +515,7 @@ export default function Home() {
                   />
                 </div>
                 <div className="price-range">
-                  <span>₺{priceRange[0]}</span>
+                  <span>{nf.format(priceRange[0])}</span>
                   <input 
                     type="range"
                     min="0"
@@ -523,7 +525,7 @@ export default function Home() {
                     onChange={(e) => setPriceRange([priceRange[0], Number(e.target.value)])}
                     className="price-slider"
                   />
-                  <span>₺{priceRange[1]}</span>
+                  <span>{nf.format(priceRange[1])}</span>
                 </div>
               </div>
             </div>
@@ -539,9 +541,14 @@ export default function Home() {
             </div>
 
             <div className="filter-section">
-              <h3 className="filter-title">Marka</h3>
+              <h3 className="filter-title" style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8 }}>
+                <span>Marka</span>
+                <input value={brandQuery} onChange={(e)=>setBrandQuery(e.target.value)} placeholder="Ara" className="input" style={{ maxWidth: 160 }} />
+              </h3>
               <div className="category-filters">
-                {brands.map(brand => (
+                {(() => {
+                  const list = brands.filter(b => b === 'Tümü' || b.toLowerCase().includes(brandQuery.toLowerCase()));
+                  return list.map(brand => (
                   <button 
                     key={brand}
                     className={`category-btn ${selectedBrand === brand ? "active" : ""}`}
@@ -549,14 +556,20 @@ export default function Home() {
                   >
                     {brand}
                   </button>
-                ))}
+                  ));
+                })()}
               </div>
             </div>
 
             <div className="filter-section">
-              <h3 className="filter-title">Kategoriler</h3>
+              <h3 className="filter-title" style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8 }}>
+                <span>Kategoriler</span>
+                <input value={categoryQuery} onChange={(e)=>setCategoryQuery(e.target.value)} placeholder="Ara" className="input" style={{ maxWidth: 160 }} />
+              </h3>
               <div className="category-filters">
-                {categories.map(cat => (
+                {(() => {
+                  const list = categories.filter(c => c === 'Tümü' || c.toLowerCase().includes(categoryQuery.toLowerCase()));
+                  return list.map(cat => (
                   <button 
                     key={cat}
                     className={`category-btn ${selectedCategory === cat ? "active" : ""}`}
@@ -564,21 +577,35 @@ export default function Home() {
                   >
                     {cat}
                   </button>
-                ))}
+                  ));
+                })()}
               </div>
             </div>
 
             {(filterGroups||[]).map((g) => (
               <div className="filter-section" key={g.name}>
-                <h3 className="filter-title">{g.name}</h3>
+                <h3 className="filter-title" style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8 }}>
+                  <span>{g.name}</span>
+                  <input
+                    value={fgQueries[g.name]||""}
+                    onChange={(e)=>setFgQueries(v=>({ ...v, [g.name]: e.target.value }))}
+                    placeholder="Ara"
+                    className="input"
+                    style={{ maxWidth: 160 }}
+                  />
+                </h3>
                 <div className="category-filters">
-                  {["Tümü", ...(g.options||[])].map(opt => (
-                    <button
-                      key={opt}
-                      className={`category-btn ${ (localStorage.getItem('pref_fg_'+g.name)||'Tümü')===opt ? 'active':''}`}
-                      onClick={() => { localStorage.setItem('pref_fg_'+g.name, opt); setFilteredItems([...items]); }}
-                    >{opt}</button>
-                  ))}
+                  {(() => {
+                    const q = (fgQueries[g.name]||"").toLowerCase();
+                    const opts = ["Tümü", ...(g.options||[])].filter(o => o === 'Tümü' || o.toLowerCase().includes(q));
+                    return opts.map(opt => (
+                      <button
+                        key={opt}
+                        className={`category-btn ${ (localStorage.getItem('pref_fg_'+g.name)||'Tümü')===opt ? 'active':''}`}
+                        onClick={() => { localStorage.setItem('pref_fg_'+g.name, opt); setFilteredItems([...items]); }}
+                      >{opt}</button>
+                    ));
+                  })()}
                 </div>
               </div>
             ))}
@@ -858,6 +885,19 @@ export default function Home() {
       )}
       
       </main>
+
+      {showLogout && (
+        <div className="modal" onClick={()=>setShowLogout(false)}>
+          <div className="modal-card" onClick={(e)=>e.stopPropagation()}>
+            <h3>Çıkış yapılsın mı?</h3>
+            <p>Hesabınızdan çıkış yapmak üzeresiniz.</p>
+            <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
+              <button className="btn-ghost" onClick={()=>setShowLogout(false)}>İptal</button>
+              <button className="btn-primary" onClick={doLogout}><span className="btn-label">Çıkış Yap</span></button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Toast Bildirimler */}
       <div className="toast-wrap">

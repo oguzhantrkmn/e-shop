@@ -182,7 +182,8 @@ export default function AuthCard() {
               <div className="panel" style={{ padding: 22 }}>
                 {mode === "login" && (
                   <form className="form" onSubmit={handleLogin}>
-                    <h2 className="form-title">Giriş Yap</h2>
+                    <img src="/images/ykk-logo.png" alt="YKK" className="auth-logo-mini" />
+                    <h2 className="form-title">YKKshop Giriş Paneli</h2>
 
                     <label className="label" htmlFor="lemail">E-posta</label>
                     <input id="lemail" type="email" className="input"

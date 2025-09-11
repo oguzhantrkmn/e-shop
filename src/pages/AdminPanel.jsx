@@ -102,6 +102,7 @@ export default function AdminPanel() {
   }, []);
 
   const [tab, setTab] = useState("products"); // products | orders | users | settings
+  const [showLogout, setShowLogout] = useState(false);
 
   // site ayarları (KDV / kargo)
   const [siteSettings, setSiteSettings] = useState(() => {
@@ -203,7 +204,7 @@ export default function AdminPanel() {
     reload();
   };
 
-  const logout = () => {
+  const doLogout = () => {
     localStorage.removeItem("adminAuthed");
     window.location.assign("/admin");
   };
@@ -271,7 +272,7 @@ export default function AdminPanel() {
           </div>
           
           <div className="header-actions">
-            <button className="btn-ghost" onClick={logout}>
+            <button className="btn-ghost" onClick={()=>setShowLogout(true)}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
                 <polyline points="16,17 21,12 16,7"/>
@@ -1067,6 +1068,20 @@ export default function AdminPanel() {
 
         <Toasts items={toasts} onClose={close} />
       </main>
+
+      {/* Çıkış Onay Modalı */}
+      {showLogout && (
+        <div className="modal" onClick={()=>setShowLogout(false)}>
+          <div className="modal-card" onClick={(e)=>e.stopPropagation()}>
+            <h3>Çıkış yapılsın mı?</h3>
+            <p>Yönetici paneline çıkış yapmak üzeresiniz.</p>
+            <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
+              <button className="btn-ghost" onClick={()=>setShowLogout(false)}>İptal</button>
+              <button className="btn-primary" onClick={doLogout}><span className="btn-label">Çıkış Yap</span></button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
