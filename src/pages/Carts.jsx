@@ -3,11 +3,23 @@ import { useEffect, useMemo, useState } from "react";
 const nf = new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY" });
 
 export default function Cart() {
-  const [cart, setCart] = useState(() => JSON.parse(localStorage.getItem("cart") || "[]"));
+  const authedEmail = localStorage.getItem("authedEmail") || sessionStorage.getItem("authedEmail");
+  
+  const [cart, setCart] = useState(() => {
+    try {
+      // Kullanıcıya özel sepet verisi
+      const userCarts = JSON.parse(localStorage.getItem("userCarts") || "{}");
+      return userCarts[authedEmail] || [];
+    } catch {
+      return [];
+    }
+  });
   const [showModal, setShowModal] = useState(false);
   const [order, setOrder] = useState(null);
 
-  const profile = JSON.parse(localStorage.getItem("profile") || "{}");
+  // Kullanıcıya özel profil verisi
+  const profiles = JSON.parse(localStorage.getItem("profiles") || "{}");
+  const profile = profiles[authedEmail] || {};
 
   const baseTotal = useMemo(() => cart.reduce((a, c) => a + c.price * c.qty, 0), [cart]);
   const settings = useMemo(() => {
@@ -62,13 +74,27 @@ export default function Cart() {
     const next = cart.map((x) => (x.id === id ? { ...x, qty: Math.max(1, qty|0) } : x));
     setCart(next);
     const minimal = next.map((it) => ({ id: it.id, name: it.name, price: it.price, qty: it.qty, category: it.category, variant: it.variant || "", image: it.image || "" }));
-    try { localStorage.setItem("cart", JSON.stringify(minimal)); } catch (_) {}
+    try { 
+      // Kullanıcıya özel sepet kaydetme
+      const userCarts = JSON.parse(localStorage.getItem("userCarts") || "{}");
+      userCarts[authedEmail] = minimal;
+      localStorage.setItem("userCarts", JSON.stringify(userCarts));
+    } catch (_) {}
+    window.dispatchEvent(new Event("cart-updated"));
+    window.dispatchEvent(new Event("cart-changed"));
   };
   const removeItem = (id) => {
     const next = cart.filter((x) => x.id !== id);
     setCart(next);
     const minimal = next.map((it) => ({ id: it.id, name: it.name, price: it.price, qty: it.qty, category: it.category, variant: it.variant || "", image: it.image || "" }));
-    try { localStorage.setItem("cart", JSON.stringify(minimal)); } catch (_) {}
+    try { 
+      // Kullanıcıya özel sepet kaydetme
+      const userCarts = JSON.parse(localStorage.getItem("userCarts") || "{}");
+      userCarts[authedEmail] = minimal;
+      localStorage.setItem("userCarts", JSON.stringify(userCarts));
+    } catch (_) {}
+    window.dispatchEvent(new Event("cart-updated"));
+    window.dispatchEvent(new Event("cart-changed"));
   };
 
   const [form, setForm] = useState({
@@ -134,8 +160,14 @@ export default function Cart() {
     setOrder(ord);
     setShowModal(true);
     // sepeti temizle
-    localStorage.removeItem("cart");
+    try {
+      const userCarts = JSON.parse(localStorage.getItem("userCarts") || "{}");
+      userCarts[authedEmail] = [];
+      localStorage.setItem("userCarts", JSON.stringify(userCarts));
+    } catch(_){}
     setCart([]);
+    window.dispatchEvent(new Event("cart-updated"));
+    window.dispatchEvent(new Event("cart-changed"));
   };
 
   const downloadPDF = async () => {
@@ -212,14 +244,14 @@ export default function Cart() {
       doc.setFillColor(ACCENT[0], ACCENT[1], ACCENT[2]);
       doc.rect(10, lineY, 190, 1.2, "F");
 
-      // Sağ üst: FATURA ve sipariş bilgileri (logo ile çakışmayacak yükseklikte)
+      // Sağ üst: FATURA ve sipariş bilgileri (çizginin ALTINDA konumlandırıldı)
       doc.setTextColor(...TEXT);
       doc.setFontSize(16);
-      doc.text(toAscii("FATURA"), 190, logoY + (logoH || 10) / 2 + 2, { align: "right" });
+      doc.text(toAscii("FATURA"), 190, lineY + 9, { align: "right" });
       doc.setFontSize(11);
       doc.setTextColor(...MUTED);
-      doc.text(toAscii(`Siparis No: ${order.id}`), 190, logoY + (logoH || 10) / 2 + 8, { align: "right" });
-      doc.text(toAscii(`Tarih: ${new Date(order.date).toLocaleString("tr-TR")}`) , 190, logoY + (logoH || 10) / 2 + 13, { align: "right" });
+      doc.text(toAscii(`Siparis No: ${order.id}`), 190, lineY + 14, { align: "right" });
+      doc.text(toAscii(`Tarih: ${new Date(order.date).toLocaleString("tr-TR")}`) , 190, lineY + 18, { align: "right" });
 
       // Sol: Satıcı bilgileri (çizgi altına)
       doc.setFontSize(12);

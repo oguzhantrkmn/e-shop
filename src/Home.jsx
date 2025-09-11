@@ -17,7 +17,15 @@ export default function Home() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState("name");
   const [showMiniCart, setShowMiniCart] = useState(false);
-  const [cart, setCart] = useState(() => JSON.parse(localStorage.getItem("cart") || "[]"));
+  const [cart, setCart] = useState(() => {
+    try {
+      // Kullanıcıya özel sepet verisi
+      const userCarts = JSON.parse(localStorage.getItem("userCarts") || "{}");
+      return userCarts[authedEmail] || [];
+    } catch {
+      return [];
+    }
+  });
   const [toasts, setToasts] = useState([]);
   
   // Gelişmiş filtreler
@@ -75,7 +83,13 @@ export default function Home() {
   // Cart güncellemelerini dinle
   useEffect(() => {
     const updateCart = () => {
-      setCart(JSON.parse(localStorage.getItem("cart") || "[]"));
+      try {
+        const authedEmail = localStorage.getItem("authedEmail") || sessionStorage.getItem("authedEmail");
+        const userCarts = JSON.parse(localStorage.getItem("userCarts") || "{}");
+        setCart(userCarts[authedEmail] || []);
+      } catch {
+        setCart([]);
+      }
     };
     
     window.addEventListener("cart-updated", updateCart);
@@ -189,7 +203,9 @@ export default function Home() {
       showToast("Stokta Yok", "Bu ürün şu anda stokta yok.", "error");
       return;
     }
-    const old = JSON.parse(localStorage.getItem("cart") || "[]");
+    // Kullanıcıya özel mevcut sepeti oku
+    const userCartsAll = JSON.parse(localStorage.getItem("userCarts") || "{}");
+    const old = Array.isArray(userCartsAll[authedEmail]) ? [...userCartsAll[authedEmail]] : [];
     const ex = old.find((x) => x.id === p.id && !x.variant);
 
     // maxPerUser kontrolü
@@ -210,18 +226,25 @@ export default function Home() {
     // Büyük verileri (örn. base64 image) saklamayalım ve kota hatasına karşı güvenli yazalım
     let next = old;
     try {
-      localStorage.setItem("cart", JSON.stringify(next));
+      // Kullanıcıya özel sepet kaydetme
+      const userCarts = JSON.parse(localStorage.getItem("userCarts") || "{}");
+      userCarts[authedEmail] = next;
+      localStorage.setItem("userCarts", JSON.stringify(userCarts));
     } catch (e) {
       try {
         next = next.map((it) => ({ id: it.id, name: it.name, price: it.price, qty: it.qty, category: it.category, variant: it.variant || "", image: it.image || "" }));
-        localStorage.setItem("cart", JSON.stringify(next));
+        const userCarts = JSON.parse(localStorage.getItem("userCarts") || "{}");
+        userCarts[authedEmail] = next;
+        localStorage.setItem("userCarts", JSON.stringify(userCarts));
         showToast("Bilgi", "Tarayıcı hafızası optimize edildi.", "info");
       } catch (_) {
         // Son çare: state güncellensin, kullanıcı akışı bozulmasın
       }
     }
     setCart(next);
+    // Bildirim: hem eski (cart-updated) hem yeni (cart-changed)
     window.dispatchEvent(new Event("cart-updated"));
+    window.dispatchEvent(new Event("cart-changed"));
 
     showToast("Sepete Eklendi", `${p.name} x1`);
   };
@@ -239,9 +262,11 @@ export default function Home() {
   };
 
   const [profile, setProfile] = useState(() => {
-    const p = JSON.parse(localStorage.getItem("profile") || "{}");
-    if (!Array.isArray(p.addresses)) p.addresses = [];
-    return p;
+    // Kullanıcıya özel profil verisi
+    const profiles = JSON.parse(localStorage.getItem("profiles") || "{}");
+    const userProfile = profiles[authedEmail] || {};
+    if (!Array.isArray(userProfile.addresses)) userProfile.addresses = [];
+    return userProfile;
   });
   const [newAddress, setNewAddress] = useState({
     label: "Ev",
@@ -341,7 +366,10 @@ export default function Home() {
     });
   };
 
-  const orders = JSON.parse(localStorage.getItem("orders") || "[]").reverse();
+  // Kullanıcıya özel siparişler
+  const orders = JSON.parse(localStorage.getItem("orders") || "[]")
+    .filter(order => order.email === authedEmail)
+    .reverse();
 
   const cancelOrder = (orderId) => {
     if (!confirm("Siparişi iptal etmek istediğinizden emin misiniz?")) return;
@@ -529,7 +557,18 @@ export default function Home() {
                 </div>
               </div>
             </div>
-
+            <div className="filter-section">
+              <h3 className="filter-title">Sırala</h3>
+              <select 
+                className="sort-select"
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+              >
+                <option value="name">İsme Göre (A-Z)</option>
+                <option value="price-low">Fiyat (Düşükten Yükseğe)</option>
+                <option value="price-high">Fiyat (Yüksekten Düşüğe)</option>
+              </select>
+            </div>
             <div className="filter-section">
               <h3 className="filter-title">Durum</h3>
               <div className="category-filters">
@@ -610,18 +649,7 @@ export default function Home() {
               </div>
             ))}
             
-            <div className="filter-section">
-              <h3 className="filter-title">Sırala</h3>
-              <select 
-                className="sort-select"
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-              >
-                <option value="name">İsme Göre (A-Z)</option>
-                <option value="price-low">Fiyat (Düşükten Yükseğe)</option>
-                <option value="price-high">Fiyat (Yüksekten Düşüğe)</option>
-              </select>
-            </div>
+            
           </aside>
           
           {/* Products */}

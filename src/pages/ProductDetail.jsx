@@ -87,17 +87,25 @@ export default function ProductDetail() {
     // Büyük verileri saklamadan güvenli yazım
     let next = old;
     try {
-      localStorage.setItem("cart", JSON.stringify(next));
+      // Kullanıcıya özel sepet kaydetme
+      const authedEmail = localStorage.getItem("authedEmail") || sessionStorage.getItem("authedEmail");
+      const userCarts = JSON.parse(localStorage.getItem("userCarts") || "{}");
+      userCarts[authedEmail] = next;
+      localStorage.setItem("userCarts", JSON.stringify(userCarts));
     } catch (e) {
       try {
         next = next.map((it) => ({ id: it.id, name: it.name, price: it.price, qty: it.qty, category: it.category, variant: it.variant || "", image: it.image || "" }));
-        localStorage.setItem("cart", JSON.stringify(next));
+        const authedEmail = localStorage.getItem("authedEmail") || sessionStorage.getItem("authedEmail");
+        const userCarts = JSON.parse(localStorage.getItem("userCarts") || "{}");
+        userCarts[authedEmail] = next;
+        localStorage.setItem("userCarts", JSON.stringify(userCarts));
         push({ title: "Bilgi", message: "Tarayıcı hafızası optimize edildi.", type: "info" });
       } catch (_) {
         // yoksay
       }
     }
     window.dispatchEvent(new Event("cart-changed"));
+    window.dispatchEvent(new Event("cart-updated"));
     push({ title: "Sepete eklendi", message: `${p.name} x${qty}` });
   };
 
