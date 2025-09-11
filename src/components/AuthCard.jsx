@@ -131,6 +131,15 @@ export default function AuthCard() {
 
     const storage = rememberMe ? localStorage : sessionStorage;
 
+    // Silinmiş e-posta engeli
+    try {
+      const deleted = new Set(JSON.parse(localStorage.getItem('deletedEmails') || '[]'));
+      if (deleted.has(email)) {
+        setLoginErr('Bu e-posta silinmiş. Tekrar kayıt olduktan sonra giriş yapabilirsiniz.');
+        return;
+      }
+    } catch(_) {}
+
     // Rate limit: aynı e-posta için 5 hatalı denemede 1 dakika kilitle
     const rlKey = `rl_${email}`;
     const now = Date.now();
@@ -346,8 +355,8 @@ export default function AuthCard() {
       setResetStep(2);
     } else {
       setResetErr(`E-posta gönderilemedi. Sıfırlama kodunuz: ${code} (Geliştirme modu)`);
-      setResetState("sent");
-      setResetStep(2);
+    setResetState("sent");
+    setResetStep(2);
     }
   };
 
@@ -374,7 +383,7 @@ export default function AuthCard() {
   };
 
   return (
-    <div className="auth-form-section">
+      <div className="auth-form-section">
         <div className="auth-card">
           <div className={`flip-card ${mode === "register" ? "flipped" : ""}`}>
             <div className="flip-inner">
@@ -436,8 +445,8 @@ export default function AuthCard() {
                         <p className="muted" style={{ textAlign: 'center', marginBottom: '20px' }}>
                           E-posta adresinizi girin, size şifre sıfırlama kodu gönderelim.
                         </p>
-                        <label className="label">E-posta</label>
-                        <input type="email" className="input" value={resetEmail} onChange={(e)=>setResetEmail(e.target.value)} placeholder="ornek@mail.com" required />
+                    <label className="label">E-posta</label>
+                    <input type="email" className="input" value={resetEmail} onChange={(e)=>setResetEmail(e.target.value)} placeholder="ornek@mail.com" required />
                       </>
                     ) : (
                       <>
@@ -500,75 +509,75 @@ export default function AuthCard() {
             <section className="face back">
               <div className="panel" style={{ padding: 18 }}>
                 {regStep === 1 ? (
-                  <form className="form register-form" onSubmit={handleRegister}>
+                <form className="form register-form" onSubmit={handleRegister}>
                     <img src="/images/ykk-logo.png" alt="YKK" className="auth-logo-mini" />
                     <h2 className="form-title">YKKshop Kayıt Paneli</h2>
 
-                    {/* İlk satır - Ad Soyad ve E-posta */}
-                    <div className="form-row-compact">
-                      <div className="form-group-compact">
-                        <label className="label" htmlFor="name">Ad Soyad</label>
-                        <input id="name" className="input" value={name}
-                               onChange={(e) => setName(e.target.value)} placeholder="Ad Soyad" required />
-                      </div>
-                      <div className="form-group-compact">
-                        <label className="label" htmlFor="remail">E-posta</label>
-                        <input id="remail" type="email" className="input"
-                               value={regEmail} onChange={(e) => setRegEmail(e.target.value)}
-                               placeholder="ornek@mail.com" required />
+                  {/* İlk satır - Ad Soyad ve E-posta */}
+                  <div className="form-row-compact">
+                    <div className="form-group-compact">
+                      <label className="label" htmlFor="name">Ad Soyad</label>
+                      <input id="name" className="input" value={name}
+                             onChange={(e) => setName(e.target.value)} placeholder="Ad Soyad" required />
+                    </div>
+                    <div className="form-group-compact">
+                      <label className="label" htmlFor="remail">E-posta</label>
+                      <input id="remail" type="email" className="input"
+                             value={regEmail} onChange={(e) => setRegEmail(e.target.value)}
+                             placeholder="ornek@mail.com" required />
+                    </div>
+                  </div>
+
+                  {/* İkinci satır - Şifreler */}
+                  <div className="form-row-compact">
+                    <div className="form-group-compact">
+                      <label className="label" htmlFor="rpass">Şifre</label>
+                      <div className="input-row">
+                        <input id="rpass" type={showRegPw1 ? "text" : "password"} className="input"
+                               value={regPassword} onChange={(e) => setRegPassword(e.target.value)}
+                               placeholder="En az 6 karakter" required />
+                        <button type="button" className="pw-toggle side"
+                                aria-label={showRegPw1 ? "Şifreyi gizle" : "Şifreyi göster"}
+                                aria-pressed={showRegPw1}
+                                onClick={() => setShowRegPw1((v) => !v)}>
+                          {showRegPw1 ? <EyeOff /> : <Eye />}
+                        </button>
                       </div>
                     </div>
-
-                    {/* İkinci satır - Şifreler */}
-                    <div className="form-row-compact">
-                      <div className="form-group-compact">
-                        <label className="label" htmlFor="rpass">Şifre</label>
-                        <div className="input-row">
-                          <input id="rpass" type={showRegPw1 ? "text" : "password"} className="input"
-                                 value={regPassword} onChange={(e) => setRegPassword(e.target.value)}
-                                 placeholder="En az 6 karakter" required />
-                          <button type="button" className="pw-toggle side"
-                                  aria-label={showRegPw1 ? "Şifreyi gizle" : "Şifreyi göster"}
-                                  aria-pressed={showRegPw1}
-                                  onClick={() => setShowRegPw1((v) => !v)}>
-                            {showRegPw1 ? <EyeOff /> : <Eye />}
-                          </button>
-                        </div>
-                      </div>
-                      <div className="form-group-compact">
-                        <label className="label" htmlFor="rpass2">Şifre (Tekrar)</label>
-                        <div className="input-row">
-                          <input id="rpass2" type={showRegPw2 ? "text" : "password"} className="input"
-                                 value={regPassword2} onChange={(e) => setRegPassword2(e.target.value)}
-                                 placeholder="Şifre tekrar" required />
-                          <button type="button" className="pw-toggle side"
-                                  aria-label={showRegPw2 ? "Şifreyi gizle" : "Şifreyi göster"}
-                                  aria-pressed={showRegPw2}
-                                  onClick={() => setShowRegPw2((v) => !v)}>
-                            {showRegPw2 ? <EyeOff /> : <Eye />}
-                          </button>
-                        </div>
+                    <div className="form-group-compact">
+                      <label className="label" htmlFor="rpass2">Şifre (Tekrar)</label>
+                      <div className="input-row">
+                        <input id="rpass2" type={showRegPw2 ? "text" : "password"} className="input"
+                               value={regPassword2} onChange={(e) => setRegPassword2(e.target.value)}
+                               placeholder="Şifre tekrar" required />
+                        <button type="button" className="pw-toggle side"
+                                aria-label={showRegPw2 ? "Şifreyi gizle" : "Şifreyi göster"}
+                                aria-pressed={showRegPw2}
+                                onClick={() => setShowRegPw2((v) => !v)}>
+                          {showRegPw2 ? <EyeOff /> : <Eye />}
+                        </button>
                       </div>
                     </div>
+                  </div>
 
-                    {regErr && <p className="alert error">{regErr}</p>}
+                  {regErr && <p className="alert error">{regErr}</p>}
 
-                    <button className={`btn-primary ${regBtnState}`} type="submit"
-                            disabled={regBtnState === "error"}>
-                      <span className="btn-label">
+                  <button className={`btn-primary ${regBtnState}`} type="submit"
+                          disabled={regBtnState === "error"}>
+                    <span className="btn-label">
                         {regBtnState === "success" ? "Kod Gönderildi ✓" : "Kayıt Ol"}
-                      </span>
-                    </button>
+                    </span>
+                  </button>
 
-                    <p className="switch">
-                      Zaten hesabın var mı?{" "}
+                  <p className="switch">
+                    Zaten hesabın var mı?{" "}
                       <button type="button" className="link" onClick={toggle} style={{ 
                         color: 'var(--accent)', 
                         fontWeight: 'bold',
                         textDecoration: 'underline'
                       }}>Giriş Yap</button>
-                    </p>
-                  </form>
+                  </p>
+                </form>
                 ) : (
                   <form className="form register-form" onSubmit={handleVerification}>
                     <img src="/images/ykk-logo.png" alt="YKK" className="auth-logo-mini" />
@@ -643,6 +652,6 @@ export default function AuthCard() {
             </div>
           </div>
         </div>
-    </div>
+      </div>
   );
 }

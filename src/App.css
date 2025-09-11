@@ -1746,7 +1746,7 @@ select.input option {
 .current-price {
   font-size: 42px;
   font-weight: 700;
-  color:#ffffff;
+  color:#6f00ff;
   text-shadow: 0 2px 4px rgba(0,212,255,.3);
 }
 
@@ -1894,28 +1894,6 @@ select.input option {
 .btn-price {
   font-size: 14px;
   opacity: 0.9;
-}
-
-.buy-now-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 16px 20px;
-  border: 2px solid var(--accent);
-  border-radius: 16px;
-  background: transparent;
-  color: var(--accent);
-  cursor: pointer;
-  font-weight: 600;
-  transition: all 0.3s ease;
-  white-space: nowrap;
-}
-
-.buy-now-btn:hover {
-  background: var(--accent);
-  color: #fff;
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(0,212,255,.3);
 }
 
 .product-features {
@@ -2125,13 +2103,12 @@ select.input option {
   left: 0 !important;
   right: 0 !important;
   bottom: 0 !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
+  display: grid !important;
+  place-items: center !important;            /* tam merkezleme */
   background: rgba(0,0,0,0.7) !important;     /* mat arka plan */
   z-index: 9999 !important;
   padding: 20px !important;
-  width: 100vw !important;
+  width: 100vw !important;        /* tam ekran kaplama */
   height: 100vh !important;
 }
 
@@ -2142,12 +2119,16 @@ select.input option {
   border-radius: 16px !important;
   box-shadow: 0 20px 60px rgba(0,0,0,.6) !important;
   backdrop-filter: none !important;        /* flu etkisi olmasın */
-  max-width: 500px !important;
+  max-width: 560px !important;             /* logout modal ile aynı genişlik */
   width: 100% !important;
-  padding: 24px !important;
+  padding: 28px !important;                /* iç boşluk eşitlendi */
   position: relative !important;
   z-index: 10000 !important;
+  margin: 0 auto !important;                /* güvenli merkezleme */
 }
+/* Modal içerik tipografisi (logout modal ile aynı) */
+.modal-card h3{ margin: 0 0 10px 0 !important; font-size: 20px !important; font-weight: 700 !important; }
+.modal-card p{ margin: 8px 0 18px 0 !important; line-height: 1.5 !important; color: var(--text-soft) !important; }
 .modal-card.pdetail-card{
   background: #0b0a13;         /* tam opak arka plan */
   border: 1px solid var(--border);

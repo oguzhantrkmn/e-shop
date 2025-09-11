@@ -33,6 +33,7 @@ export function saveProduct(prod) {
     var parsedPrice = Number(out.price) || 0;
     if (parsedPrice < 0) parsedPrice = 0; // negatif fiyatı engelle
     out.price = parsedPrice;
+    out.discountPercent = Math.max(0, Math.min(100, Number(out.discountPercent || 0))); // indirim %
     out.stock = out.stock == null ? 10 : Number(out.stock); // varsayılan stok
     out.maxPerUser = out.maxPerUser == null ? 0 : Number(out.maxPerUser);
 

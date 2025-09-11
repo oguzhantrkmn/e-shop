@@ -1,5 +1,6 @@
 // src/pages/AdminPanel.jsx
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { fetchProducts, fetchAllRaw, saveProduct, deleteProduct, fetchOrders, fetchUsers, updateOrderStatus, setOrderShippingInfo } from "../api/product";
 
 /* Basit toast (Home’daki ile uyumlu konteyner sınıfı) */
@@ -244,6 +245,9 @@ export default function AdminPanel() {
     await setOrderStatus(o.id, next);
   };
 
+  const [userEdit, setUserEdit] = useState(null);
+  const [userDelete, setUserDelete] = useState(null);
+
   return (
     <div className="ecommerce-layout">
       {/* Admin Header Navigation */}
@@ -345,6 +349,17 @@ export default function AdminPanel() {
                 value={form.price}
                 onChange={(e) => setForm({ ...form, price: e.target.value })}
                 required
+              />
+
+              <label className="label">İndirim Oranı (%)</label>
+              <input
+                className="input"
+                type="number"
+                min="0"
+                max="100"
+                step="1"
+                value={form.discountPercent ?? 0}
+                onChange={(e) => setForm({ ...form, discountPercent: Math.max(0, Math.min(100, e.target.valueAsNumber || 0)) })}
               />
 
               <label className="label">Kategori</label>
@@ -526,10 +541,10 @@ export default function AdminPanel() {
                 <div className="adm-head">
                   <div>Ürün</div>
                   <div>Fiyat</div>
+                  <div>İndirim</div>
                   <div>Kat.</div>
                   <div>Stok</div>
                   <div>Durum</div>
-                  <div style={{ textAlign: 'right' }}>İşlem</div>
                 </div>
                 {list
                   .filter(p => {
@@ -544,23 +559,18 @@ export default function AdminPanel() {
                       {p.name}
                     </div>
                     <div>₺{Number(p.price).toLocaleString("tr-TR")}</div>
+                    <div>₺{Number(p.price * (1 - (p.discountPercent || 0) / 100)).toLocaleString("tr-TR")}</div>
                     <div>{p.category || "-"}</div>
                     <div>{p.stock ?? 0}</div>
-                    <div>
+                    <div style={{ display:'flex', alignItems:'center', gap:8, justifyContent:'flex-start' }}>
                       <button className={`chip ${p.active!==false?"":"warn"}`} onClick={async()=>{
                         const next = { ...p, active: p.active===false ? true : false };
                         await saveProduct(next);
                         push({ title: next.active?"Aktifleştirildi":"Pasife alındı" });
                         reload();
                       }}>{p.active!==false?"Aktif":"Pasif"}</button>
-                    </div>
-                    <div className="adm-actions" style={{ justifySelf: 'end' }}>
-                      <button className="link" onClick={() => onEdit(p)}>
-                        Düzenle
-                      </button>
-                      <button className="link" onClick={() => onDelete(p.id)}>
-                        Sil
-                      </button>
+                      <button className="link" onClick={() => onEdit(p)}>Düzenle</button>
+                      <button className="link" onClick={() => onDelete(p.id)}>Sil</button>
                     </div>
                   </div>
                 ))}
@@ -619,23 +629,96 @@ export default function AdminPanel() {
           <div className="admin-section">
             <h2 className="admin-section-title">Kullanıcı Yönetimi</h2>
             <div className="adm-table">
-            <div className="adm-head">
-              <div>Ad</div>
-              <div>E-posta</div>
-              <div>Tel</div>
-              <div>Şehir</div>
-              <div>Adres</div>
-            </div>
-            {users.map((u, i) => (
-              <div key={i} className="adm-row">
-                <div>{u.name || "-"}</div>
-                <div>{u.email}</div>
-                <div>{u.phone || "-"}</div>
-                <div>{u.city || "-"}</div>
-                <div className="ellipsis">{u.address || "-"}</div>
+              <div className="adm-head" style={{ gridTemplateColumns: '1.1fr 1.6fr 1fr 1fr 2fr auto' }}>
+                <div>Ad</div>
+                <div>E-posta</div>
+                <div>Tel</div>
+                <div>Şehir</div>
+                <div>Adres</div>
+                <div style={{ textAlign:'right' }}>İşlem</div>
               </div>
-            ))}
+              {users.map((u, i) => (
+                <div key={i} className="adm-row" style={{ gridTemplateColumns: '1.1fr 1.6fr 1fr 1fr 2fr auto' }}>
+                  <div>{u.name || '-'}</div>
+                  <div>{u.email}</div>
+                  <div>{u.phone || '-'}</div>
+                  <div>{u.city || '-'}</div>
+                  <div className="ellipsis">{u.address || '-'}</div>
+                  <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
+                    <button className="btn-ghost" onClick={()=>setUserEdit({ ...u })}>Düzenle</button>
+                    <button className="btn-ghost" onClick={()=>setUserDelete(u.email)}>Sil</button>
+                  </div>
+                </div>
+              ))}
+              {users.length === 0 && (
+                <div className="adm-row" style={{ gridTemplateColumns:'1fr' }}>
+                  <div>Henüz kullanıcı yok.</div>
+                </div>
+              )}
             </div>
+
+            {userEdit && (
+              <div className="admin-section" style={{ marginTop:12 }}>
+                <h3 className="admin-section-title">Kullanıcı Düzenle</h3>
+                <form className="form" onSubmit={(e)=>{ e.preventDefault();
+                  const all = JSON.parse(localStorage.getItem('users') || '[]');
+                  const idx = all.findIndex(x => x.email === userEdit.email);
+                  if (idx >= 0) {
+                    all[idx] = { ...all[idx], name: userEdit.name, phone: userEdit.phone, city: userEdit.city, address: userEdit.address };
+                    localStorage.setItem('users', JSON.stringify(all));
+                  }
+                  const profiles = JSON.parse(localStorage.getItem('profiles') || '{}');
+                  profiles[userEdit.email] = { ...(profiles[userEdit.email]||{}), name: userEdit.name, phone: userEdit.phone, city: userEdit.city, address: userEdit.address, email: userEdit.email };
+                  localStorage.setItem('profiles', JSON.stringify(profiles));
+                  push({ title:'Kullanıcı güncellendi' });
+                  setUserEdit(null);
+                  reloadOrdersUsers();
+                }}>
+                  <div className="row2">
+                    <input className="input" placeholder="Ad" value={userEdit.name||''} onChange={(e)=>setUserEdit({ ...userEdit, name: e.target.value })} />
+                    <input className="input" placeholder="E-posta" value={userEdit.email} disabled />
+                  </div>
+                  <div className="row2">
+                    <input className="input" placeholder="Telefon" value={userEdit.phone||''} onChange={(e)=>setUserEdit({ ...userEdit, phone: e.target.value })} />
+                    <input className="input" placeholder="Şehir" value={userEdit.city||''} onChange={(e)=>setUserEdit({ ...userEdit, city: e.target.value })} />
+                  </div>
+                  <input className="input" placeholder="Adres" value={userEdit.address||''} onChange={(e)=>setUserEdit({ ...userEdit, address: e.target.value })} />
+                  <div style={{ display:'flex', gap:8, marginTop:8 }}>
+                    <button className="btn-primary" type="submit"><span className="btn-label">Kaydet</span></button>
+                    <button className="btn-ghost" type="button" onClick={()=>setUserEdit(null)}>Vazgeç</button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* Silme onay modali */}
+            {userDelete && createPortal(
+              (
+                <div className="modal" onClick={()=>setUserDelete(null)}>
+                  <div className="modal-card" onClick={(e)=>e.stopPropagation()}>
+                    <h3>Kullanıcı silinsin mi?</h3>
+                    <p>{userDelete} adresli kullanıcının kaydı silinecek.</p>
+                    <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
+                      <button className="btn-ghost" onClick={()=>setUserDelete(null)}>İptal</button>
+                      <button className="btn-primary" onClick={()=>{
+                        const mail = userDelete;
+                        const us = JSON.parse(localStorage.getItem('users')||'[]').filter(x=>x.email!==mail);
+                        localStorage.setItem('users', JSON.stringify(us));
+                        const pr = JSON.parse(localStorage.getItem('profiles')||'{}');
+                        delete pr[mail];
+                        localStorage.setItem('profiles', JSON.stringify(pr));
+                        const del = new Set(JSON.parse(localStorage.getItem('deletedEmails')||'[]')); del.add(mail);
+                        localStorage.setItem('deletedEmails', JSON.stringify(Array.from(del)));
+                        push({ title:'Kullanıcı silindi' });
+                        setUserDelete(null);
+                        reloadOrdersUsers();
+                      }}><span className="btn-label">Sil</span></button>
+                    </div>
+                  </div>
+                </div>
+              ),
+              document.body
+            )}
           </div>
         )}
 
@@ -1070,17 +1153,20 @@ export default function AdminPanel() {
       </main>
 
       {/* Çıkış Onay Modalı */}
-      {showLogout && (
-        <div className="modal" onClick={()=>setShowLogout(false)}>
-          <div className="modal-card" onClick={(e)=>e.stopPropagation()}>
-            <h3>Çıkış yapılsın mı?</h3>
-            <p>Yönetici paneline çıkış yapmak üzeresiniz.</p>
-            <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
-              <button className="btn-ghost" onClick={()=>setShowLogout(false)}>İptal</button>
-              <button className="btn-primary" onClick={doLogout}><span className="btn-label">Çıkış Yap</span></button>
+      {showLogout && createPortal(
+        (
+          <div className="modal" onClick={()=>setShowLogout(false)}>
+            <div className="modal-card" onClick={(e)=>e.stopPropagation()}>
+              <h3>Çıkış yapılsın mı?</h3>
+              <p>Yönetici paneline çıkış yapmak üzeresiniz.</p>
+              <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
+                <button className="btn-ghost" onClick={()=>setShowLogout(false)}>İptal</button>
+                <button className="btn-primary" onClick={doLogout}><span className="btn-label">Çıkış Yap</span></button>
+              </div>
             </div>
           </div>
-        </div>
+        ),
+        document.body
       )}
     </div>
   );

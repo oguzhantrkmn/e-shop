@@ -709,7 +709,20 @@ export default function Home() {
                       
                       <div className="product-footer">
                         <div className="price-section">
-                          <span className="product-price-modern">{nf.format(p.price)}</span>
+                          <div className="product-price">
+                            { (p.discountPercent ?? 0) > 0 ? (
+                              <>
+                                <div className="old-price" style={{ textDecoration:'line-through', opacity:.6 }}>
+                                  {nf.format(p.price)}
+                                </div>
+                                <div className="new-price" style={{ color:'var(--accent)' }}>
+                                  {nf.format(p.price * (1 - (p.discountPercent||0)/100))}
+                                </div>
+                              </>
+                            ) : (
+                              <div className="new-price">{nf.format(p.price)}</div>
+                            )}
+                          </div>
                         </div>
 
                         <button 

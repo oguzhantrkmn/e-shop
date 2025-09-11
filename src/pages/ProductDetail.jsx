@@ -244,12 +244,7 @@ export default function ProductDetail() {
                   <span className="btn-price">({nf.format(p.price * qty)})</span>
                 </button>
                 
-                <button className="buy-now-btn" onClick={addToCart}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M13 10V3L4 14h7v7l9-11h-7z"/>
-                  </svg>
-                  Hemen Al
-                </button>
+                
               </div>
               
               <div className="product-features">
