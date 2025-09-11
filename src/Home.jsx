@@ -58,6 +58,8 @@ export default function Home() {
         // Her açılışta slider'ı maksimumdan başlat
         setPriceRange([0, dynMax]);
         setLoading(false);
+        // global route loader'ı kapat
+        try { window.dispatchEvent(new Event('route-ready')); } catch(e) {}
       }
     })();
     return () => {

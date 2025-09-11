@@ -17,6 +17,11 @@ export default function Cart() {
   const [showModal, setShowModal] = useState(false);
   const [order, setOrder] = useState(null);
 
+  // route overlay'i bu sayfa yüklendiğinde kapat
+  useEffect(() => {
+    try { window.dispatchEvent(new Event('route-ready')); } catch(e) {}
+  }, []);
+
   // Kullanıcıya özel profil verisi
   const profiles = JSON.parse(localStorage.getItem("profiles") || "{}");
   const profile = profiles[authedEmail] || {};

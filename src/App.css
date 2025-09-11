@@ -545,6 +545,8 @@ select.input option {
   border-bottom: 1px solid var(--border-bright);
   backdrop-filter: blur(4px); /* Blur azaltıldı */
   position: sticky;
+  padding: 0vh 0vh 0vh 0vh;
+  margin: 0vh 0vh 0vh 0vh;
   top: 0;
   z-index: 100;
   box-shadow: 0 4px 20px rgba(0,0,0,.1);
@@ -1066,13 +1068,19 @@ select.input option {
 .loading-spinner {
   width: 96px;
   height: 96px;
-  border: 6px solid rgba(255,255,255,.1);
-  border-top: 6px solid var(--accent);
   border-radius: 50%;
-  /* spin animasyonu kaldırıldı */
+  position: relative;
+  /* çift katmanlı zarif spinner */
+  background:
+    conic-gradient(from 0deg, var(--accent) 0 90deg, transparent 90deg 360deg),
+    radial-gradient(farthest-side, rgba(255,255,255,.65) 99%, transparent 100%);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 12px), #000 0);
+          mask: radial-gradient(farthest-side, transparent calc(100% - 12px), #000 0);
+  animation: spin 1s linear infinite;
+  box-shadow: 0 8px 30px rgba(0,0,0,.25);
 }
 
-/* spin animasyonu kaldırıldı */
+@keyframes spin { to { transform: rotate(360deg); } }
 
 .empty-state {
   display: flex;

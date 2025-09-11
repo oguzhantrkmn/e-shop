@@ -54,6 +54,7 @@ export default function ProductDetail() {
       if (!alive) return;
       setP(list.find((x) => String(x.id) === String(id)));
       setLoading(false);
+      try { window.dispatchEvent(new Event('route-ready')); } catch(e) {}
     })();
     return () => (alive = false);
   }, [id]);
@@ -112,7 +113,7 @@ export default function ProductDetail() {
   if (loading)
     return (
       <div className="page-wrapper" style={{ display: 'grid', placeItems: 'center', minHeight: '60vh' }}>
-        <Loading src={(JSON.parse(localStorage.getItem("siteSettings")||"{}").loadingLottie)||""} size={160} />
+        <Loading size={160} />
       </div>
     );
 

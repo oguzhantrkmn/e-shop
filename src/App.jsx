@@ -1,6 +1,6 @@
 // src/App.jsx
 // Single-theme mode: no theme switching needed
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import "./App.css"; // stiller burada toplanıyorsa dahil et
 
 // Lazy loading ile componentleri sadece gerektiğinde yükle
@@ -18,13 +18,34 @@ export default function App() {
 
   // Theme switching removed; single palette is applied globally via CSS variables
 
-  // Basit arka plan
+  // Tekil route loader: Sayfa 'route-ready' event'i atana kadar tam ekran spinner
+  function RouteGate({ children, path }) {
+    const [ready, setReady] = useState(false);
+    useEffect(() => {
+      setReady(false);
+      const onReady = () => setReady(true);
+      window.addEventListener('route-ready', onReady, { once: true });
+      // Emniyet: 15sn içinde gelmezse yine de aç
+      const fallback = setTimeout(() => setReady(true), 15000);
+      return () => { window.removeEventListener('route-ready', onReady); clearTimeout(fallback); };
+    }, [path]);
+    return (
+      <>
+        {children}
+        {!ready && <div className="app-loader"><div className="loading-spinner"></div></div>}
+      </>
+    );
+  }
+
+  // Basit arka plan + RouteGate + Suspense (fallback yok, çünkü overlay var)
   const withBg = (node) => (
     <>
       <div className="bg-scene"></div>
-      <Suspense fallback={<div className="loading-state"><div className="loading-spinner"></div></div>}>
-        {node}
-      </Suspense>
+      <RouteGate path={path}>
+        <Suspense fallback={null}>
+          {node}
+        </Suspense>
+      </RouteGate>
     </>
   );
 
