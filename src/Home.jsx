@@ -391,9 +391,10 @@ export default function Home() {
   };
 
   const imgFor = (p) => {
-    if (p.image) {
-      if (/^https?:\/\//.test(p.image) || p.image.startsWith("/") || p.image.startsWith("data:")) return p.image;
-      return `/products/${p.image}`;
+    const first = (Array.isArray(p.images) && p.images.length>0) ? p.images[0] : p.image;
+    if (first) {
+      if (/^https?:\/\//.test(first) || first.startsWith("/") || first.startsWith("data:")) return first;
+      return `/products/${first}`;
     }
     return ""; // Admin görseli dışında otomatik görsel kullanma
   };

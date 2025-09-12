@@ -77,7 +77,8 @@ export default function AdminPanel() {
     id: "",
     name: "",
     price: "",
-    image: "",
+    image: "", // geriye dönük uyumluluk için korunur (ilk görsel)
+    images: [],  // yeni çoklu görseller
     category: categories[0] || "",
     description: "",
     active: true,
@@ -150,11 +151,16 @@ export default function AdminPanel() {
   };
 
   // file -> dataURL
-  const onPickImage = async (file) => {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setForm((f) => ({ ...f, image: reader.result }));
-    reader.readAsDataURL(file);
+  // Çoklu görsel yükleme
+  const onPickImages = async (files) => {
+    if (!files || files.length === 0) return;
+    const readFile = (file) => new Promise((res) => { const r=new FileReader(); r.onload=()=>res(r.result); r.readAsDataURL(file); });
+    const arr = [];
+    for (const f of files) arr.push(await readFile(f));
+    setForm((prev) => {
+      const nextImages = [ ...(prev.images||[]), ...arr ];
+      return { ...prev, images: nextImages, image: nextImages[0] || prev.image || "" };
+    });
   };
 
   const addSpec = () =>
@@ -407,29 +413,43 @@ export default function AdminPanel() {
                 onChange={(e) => setForm({ ...form, maxPerUser: Math.max(0, e.target.valueAsNumber || 0) })}
               />
 
-              <label className="label">Görsel</label>
-              <input
-                className="input"
-                placeholder="URL (ya da aşağıdan dosya seç)"
-                value={form.image || ""}
-                onChange={(e) => setForm({ ...form, image: e.target.value })}
-              />
-              <div className="file-upload-modern">
+              <label className="label">Görseller</label>
+              <div className="file-upload-modern" style={{ display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
                 <input
                   type="file"
-                  id="file-upload"
+                  id="file-upload-multi"
                   accept="image/*"
-                  onChange={(e) => onPickImage(e.target.files?.[0])}
+                  multiple
+                  onChange={(e) => onPickImages(Array.from(e.target.files||[]))}
                   style={{ display: 'none' }}
                 />
-                <label htmlFor="file-upload" className="file-upload-btn">
+                <label htmlFor="file-upload-multi" className="file-upload-btn">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
                     <polyline points="7,10 12,15 17,10"/>
                     <line x1="12" y1="15" x2="12" y2="3"/>
                   </svg>
-                  Dosya Yükle
+                  Görsel(ler) Ekle
                 </label>
+                {(form.images||[]).length>0 && (
+                  <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                    {(form.images||[]).map((src, idx)=> (
+                      <div key={idx} style={{ position:'relative' }}>
+                        <img src={src} alt="preview" style={{ width:64, height:64, objectFit:'cover', borderRadius:8, border:'1px solid var(--border)' }} />
+                        <div style={{ display:'flex', gap:6, marginTop:4, justifyContent:'space-between' }}>
+                          <button type="button" className="btn-ghost" onClick={()=>{
+                            setForm(f=>{ const arr=[...(f.images||[])]; arr.splice(idx,1); return { ...f, images: arr, image: (arr[0]||"") } });
+                          }}>Sil</button>
+                          {idx!==0 && (
+                            <button type="button" className="btn-ghost" onClick={()=>{
+                              setForm(f=>{ const arr=[...(f.images||[])]; const [it]=arr.splice(idx,1); arr.unshift(it); return { ...f, images: arr, image: arr[0] } });
+                            }}>Birincil Yap</button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <label className="label">Açıklama</label>

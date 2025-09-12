@@ -45,6 +45,7 @@ export default function ProductDetail() {
   const [p, setP] = useState(null);
   const [qty, setQty] = useState(1);
   const [selectedVariant, setSelectedVariant] = useState("");
+  const [imgIndex, setImgIndex] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -52,20 +53,19 @@ export default function ProductDetail() {
     (async () => {
       const list = await fetchProducts();
       if (!alive) return;
-      setP(list.find((x) => String(x.id) === String(id)));
+      const prod = list.find((x) => String(x.id) === String(id));
+      setP(prod);
+      setImgIndex(0);
       setLoading(false);
       try { window.dispatchEvent(new Event('route-ready')); } catch(e) {}
     })();
     return () => (alive = false);
   }, [id]);
 
-  const imgFor = (prod) => {
-    if (!prod) return "";
-    if (prod.image) {
-      if (/^https?:\/\//.test(prod.image) || prod.image.startsWith("/") || prod.image.startsWith("data:")) return prod.image;
-      return `/products/${prod.image}`;
-    }
-    return "";
+  const absSrc = (src) => {
+    if (!src) return "";
+    if (/^https?:\/\//.test(src) || src.startsWith("/") || src.startsWith("data:")) return src;
+    return `/products/${src}`;
   };
 
   const addToCart = () => {
@@ -164,15 +164,22 @@ export default function ProductDetail() {
           {/* Product Images */}
           <div className="product-gallery">
             <div className="main-image">
-              {imgFor(p) && (
-                <img
-                  src={imgFor(p)}
-                  alt={p.name}
-                  loading="lazy"
-                  onError={(e) => (e.currentTarget.style.display = "none")}
-                />
-              )}
+              {(() => {
+                const arr = Array.isArray(p.images) && p.images.length>0 ? p.images : (p.image ? [p.image] : []);
+                const current = absSrc(arr[imgIndex] || arr[0] || "");
+                return current ? (
+                  <img src={current} alt={p.name} loading="lazy" onError={(e)=> (e.currentTarget.style.display='none')} />
+                ) : null;
+              })()}
             </div>
+            {Array.isArray(p.images) && p.images.length>1 && (
+              <div style={{ display:'flex', gap:8, marginTop:8, flexWrap:'wrap' }}>
+                {p.images.map((src,i)=> (
+                  <img key={i} src={absSrc(src)} alt={`thumb-${i}`} onClick={()=>setImgIndex(i)}
+                       style={{ width:64, height:64, objectFit:'cover', borderRadius:8, border: i===imgIndex? '2px solid var(--accent)' : '1px solid var(--border)', cursor:'pointer' }} />
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Product Info */}
